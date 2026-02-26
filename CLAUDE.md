@@ -31,7 +31,9 @@ imap-mcp/
 │   │   ├── server_test.go       # Protocol tests
 │   │   └── types.go             # JSON-RPC request/response types
 │   └── tools/                   # MCP tool implementations
-│       └── tool.go              # Tool interface definition
+│       ├── tool.go              # Tool interface definition
+│       ├── list_accounts.go     # list_accounts tool
+│       └── list_accounts_test.go
 ├── config.example.toml          # Example configuration file
 ├── Makefile                     # Build automation
 ├── CLAUDE.md                    # This file
@@ -92,6 +94,7 @@ Manages persistent IMAP connections per account with lazy initialization:
 
 - **`NewManager(cfg)`** - Creates a manager from config
 - **`GetClient(accountName)`** - Returns an IMAP client, connecting on first use
+- **`IsConnected(accountName)`** - Checks if an account has an open connection (no side effects)
 - **`Config()`** - Returns the manager's config
 - **`Close()`** - Closes all open connections
 
@@ -287,7 +290,7 @@ Every new tool should have:
 
 ## Current Tools
 
-No tools are registered yet. The `registerTools()` function in `server.go` is a placeholder awaiting tool implementations.
+- **`list_accounts`** - Lists all configured IMAP accounts with host, username, TLS status, and connection state. Takes no parameters. Does not initiate connections.
 
 ## Configuration
 

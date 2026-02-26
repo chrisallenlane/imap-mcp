@@ -136,6 +136,52 @@ func TestNewManager_StoresConfig(t *testing.T) {
 	}
 }
 
+func TestIsConnected_UnknownAccount(t *testing.T) {
+	cfg := &config.Config{
+		Accounts: map[string]config.Account{
+			"gmail": {
+				Host:     "imap.gmail.com",
+				Port:     993,
+				Username: "user@gmail.com",
+				Password: "pass",
+				TLS:      true,
+			},
+		},
+	}
+	mgr := NewManager(cfg)
+
+	if mgr.IsConnected("nonexistent") {
+		t.Error(
+			"IsConnected() should return false " +
+				"for unknown account",
+		)
+	}
+}
+
+func TestIsConnected_KnownButNotConnected(t *testing.T) {
+	cfg := &config.Config{
+		Accounts: map[string]config.Account{
+			"gmail": {
+				Host:     "imap.gmail.com",
+				Port:     993,
+				Username: "user@gmail.com",
+				Password: "pass",
+				TLS:      true,
+			},
+		},
+	}
+	mgr := NewManager(cfg)
+
+	// Account exists in config but GetClient was never called,
+	// so no connection should exist.
+	if mgr.IsConnected("gmail") {
+		t.Error(
+			"IsConnected() should return false " +
+				"for known but unconnected account",
+		)
+	}
+}
+
 func TestClose_Idempotent(t *testing.T) {
 	cfg := &config.Config{
 		Accounts: map[string]config.Account{},

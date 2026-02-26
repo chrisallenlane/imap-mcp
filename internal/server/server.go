@@ -43,7 +43,7 @@ func New(mgr *imapmanager.Manager) *Server {
 
 // registerTools registers all available tools
 func (s *Server) registerTools() {
-	// Tools will be registered here as they are implemented.
+	s.tools["list_accounts"] = tools.NewListAccounts(s.imap)
 }
 
 // Run starts the MCP server and processes requests

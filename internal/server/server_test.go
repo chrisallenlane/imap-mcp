@@ -142,9 +142,9 @@ func TestHandleListTools(t *testing.T) {
 		t.Fatal("tools should be a slice")
 	}
 
-	// No tools registered yet
-	if len(tools) != 0 {
-		t.Errorf("Expected 0 tools, got %d", len(tools))
+	// list_accounts is registered by default
+	if len(tools) != 1 {
+		t.Errorf("Expected 1 tool, got %d", len(tools))
 	}
 }
 
@@ -558,31 +558,40 @@ func TestHandleListTools_WithRegisteredTools(t *testing.T) {
 		t.Fatal("Result should be a map")
 	}
 
-	tools, ok := result["tools"].([]map[string]interface{})
+	toolsList, ok := result["tools"].([]map[string]interface{})
 	if !ok {
 		t.Fatal("tools should be a slice")
 	}
 
-	if len(tools) != 1 {
-		t.Fatalf("expected 1 tool, got %d", len(tools))
-	}
-
-	if tools[0]["name"] != "mock_tool" {
-		t.Errorf(
-			"tool name = %v, want mock_tool",
-			tools[0]["name"],
+	// list_accounts is auto-registered, plus our mock_tool
+	if len(toolsList) != 2 {
+		t.Fatalf(
+			"expected 2 tools, got %d",
+			len(toolsList),
 		)
 	}
 
-	if tools[0]["description"] != "A mock tool for testing" {
-		t.Errorf(
-			"tool description = %v, want A mock tool for testing",
-			tools[0]["description"],
-		)
+	// Verify mock_tool is present
+	found := false
+	for _, tool := range toolsList {
+		if tool["name"] == "mock_tool" {
+			found = true
+			if tool["description"] != "A mock tool for testing" {
+				t.Errorf(
+					"tool description = %v, "+
+						"want A mock tool for testing",
+					tool["description"],
+				)
+			}
+			if tool["inputSchema"] == nil {
+				t.Error(
+					"tool inputSchema should not be nil",
+				)
+			}
+		}
 	}
-
-	if tools[0]["inputSchema"] == nil {
-		t.Error("tool inputSchema should not be nil")
+	if !found {
+		t.Error("mock_tool not found in tools list")
 	}
 }
 

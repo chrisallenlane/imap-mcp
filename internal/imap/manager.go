@@ -57,6 +57,15 @@ func (m *Manager) GetClient(
 	return c, nil
 }
 
+// IsConnected reports whether the named account currently has an
+// open IMAP connection. It does not attempt to connect.
+func (m *Manager) IsConnected(accountName string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	_, ok := m.conns[accountName]
+	return ok
+}
+
 // Config returns the manager's configuration.
 func (m *Manager) Config() *config.Config {
 	return m.config
