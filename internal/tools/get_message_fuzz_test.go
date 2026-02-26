@@ -3,6 +3,10 @@ package tools
 import (
 	"strings"
 	"testing"
+	"time"
+
+	imap "github.com/emersion/go-imap/v2"
+	"github.com/emersion/go-imap/v2/imapclient"
 )
 
 // truncationSuffix is the string appended when the body
@@ -112,6 +116,135 @@ func FuzzParseBody(f *testing.F) {
 					att.size,
 				)
 			}
+		}
+	})
+}
+
+func FuzzFormatFullMessage(f *testing.F) {
+	// Plain text message.
+	f.Add(
+		makeRawMessage("text/plain", "Hello, world!"),
+		uint32(1),
+		"Test",
+		true,
+		false,
+	)
+
+	// HTML-only message.
+	f.Add(
+		makeRawMessage(
+			"text/html", "<html>Hello</html>",
+		),
+		uint32(2),
+		"HTML",
+		true,
+		false,
+	)
+
+	// Multipart with attachment.
+	f.Add(
+		makeMultipartMessage(),
+		uint32(3),
+		"Multi",
+		false,
+		true,
+	)
+
+	// Multiple attachments.
+	f.Add(
+		makeMultiAttachmentMessage(),
+		uint32(4),
+		"Attach",
+		true,
+		false,
+	)
+
+	// Empty body bytes.
+	f.Add(
+		[]byte{},
+		uint32(5),
+		"Empty",
+		true,
+		false,
+	)
+
+	// Nil-like (zero-length) body.
+	f.Add(
+		[]byte(nil),
+		uint32(6),
+		"Nil",
+		false,
+		false,
+	)
+
+	f.Fuzz(func(
+		t *testing.T,
+		rawBody []byte,
+		uid uint32,
+		subject string,
+		hasSeen bool,
+		hasFlagged bool,
+	) {
+		var flags []imap.Flag
+		if hasSeen {
+			flags = append(flags, imap.FlagSeen)
+		}
+		if hasFlagged {
+			flags = append(
+				flags, imap.FlagFlagged,
+			)
+		}
+
+		msg := &imapclient.FetchMessageBuffer{
+			UID:   imap.UID(uid),
+			Flags: flags,
+			Envelope: &imap.Envelope{
+				Date: time.Date(
+					2025, 1, 1, 0, 0, 0, 0,
+					time.UTC,
+				),
+				Subject: subject,
+				From: []imap.Address{
+					{
+						Mailbox: "test",
+						Host:    "example.com",
+					},
+				},
+			},
+		}
+
+		if len(rawBody) > 0 {
+			msg.BodySection = []imapclient.FetchBodySectionBuffer{
+				{
+					Section: &imap.FetchItemBodySection{},
+					Bytes:   rawBody,
+				},
+			}
+		}
+
+		out, err := formatFullMessage(
+			"acct", "INBOX", msg,
+		)
+		if err != nil {
+			if err.Error() == "" {
+				t.Error(
+					"error message must " +
+						"not be empty",
+				)
+			}
+			return
+		}
+
+		if out == "" {
+			t.Error("output must not be empty")
+		}
+
+		if !strings.HasPrefix(out, "Message UID") {
+			t.Errorf(
+				"output should start with "+
+					"\"Message UID\", got:\n%s",
+				out,
+			)
 		}
 	})
 }
