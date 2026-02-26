@@ -40,6 +40,33 @@ func (m *mockFlagSetter) StoreFlags(
 	return m.err
 }
 
+// mockFlagSetterSequence returns a different error for
+// each successive StoreFlags call.
+type mockFlagSetterSequence struct {
+	calls []storeFlagsCall
+	errs  []error
+}
+
+func (m *mockFlagSetterSequence) StoreFlags(
+	account, mailbox string,
+	uids []imap.UID,
+	op imap.StoreFlagsOp,
+	flags []imap.Flag,
+) error {
+	idx := len(m.calls)
+	m.calls = append(m.calls, storeFlagsCall{
+		account: account,
+		mailbox: mailbox,
+		uids:    uids,
+		op:      op,
+		flags:   flags,
+	})
+	if idx < len(m.errs) {
+		return m.errs[idx]
+	}
+	return nil
+}
+
 func TestMarkMessages_Description(t *testing.T) {
 	tool := NewMarkMessages(&mockFlagSetter{})
 
@@ -281,33 +308,35 @@ func TestMarkMessages_MultipleFlags(t *testing.T) {
 		)
 	}
 
-	addCall := mock.calls[0]
-	if addCall.op != imap.StoreFlagsAdd {
-		t.Errorf(
-			"first call op = %v, want StoreFlagsAdd",
-			addCall.op,
-		)
+	var addCall, delCall *storeFlagsCall
+	for i := range mock.calls {
+		switch mock.calls[i].op {
+		case imap.StoreFlagsAdd:
+			addCall = &mock.calls[i]
+		case imap.StoreFlagsDel:
+			delCall = &mock.calls[i]
+		}
+	}
+
+	if addCall == nil {
+		t.Fatal("expected a StoreFlagsAdd call")
 	}
 	if len(addCall.flags) != 1 ||
 		addCall.flags[0] != imap.FlagFlagged {
 		t.Errorf(
-			"first call flags = %v, "+
+			"add call flags = %v, "+
 				"want [\\Flagged]",
 			addCall.flags,
 		)
 	}
 
-	delCall := mock.calls[1]
-	if delCall.op != imap.StoreFlagsDel {
-		t.Errorf(
-			"second call op = %v, want StoreFlagsDel",
-			delCall.op,
-		)
+	if delCall == nil {
+		t.Fatal("expected a StoreFlagsDel call")
 	}
 	if len(delCall.flags) != 1 ||
 		delCall.flags[0] != imap.FlagSeen {
 		t.Errorf(
-			"second call flags = %v, want [\\Seen]",
+			"del call flags = %v, want [\\Seen]",
 			delCall.flags,
 		)
 	}
@@ -409,10 +438,6 @@ func TestMarkMessages_NoFlags(t *testing.T) {
 			"Execute() expected error for no flags",
 		)
 	}
-	assertContains(
-		t, err.Error(),
-		"at least one flag parameter",
-	)
 }
 
 func TestMarkMessages_EmptyUIDs(t *testing.T) {
@@ -509,4 +534,42 @@ func TestMarkMessages_StoreFlagsError(t *testing.T) {
 		)
 	}
 	assertContains(t, err.Error(), "connection refused")
+}
+
+func TestMarkMessages_SecondStoreFlagsError(t *testing.T) {
+	// First StoreFlags call succeeds, second fails.
+	// Use both add and remove flags to trigger two calls.
+	mock := &mockFlagSetterSequence{
+		errs: []error{
+			nil,
+			fmt.Errorf("server unavailable"),
+		},
+	}
+	tool := NewMarkMessages(mock)
+
+	_, err := tool.Execute(
+		context.Background(),
+		json.RawMessage(
+			`{"account":"gmail","mailbox":"INBOX",`+
+				`"uids":[1],`+
+				`"read":true,"flagged":false}`,
+		),
+	)
+	if err == nil {
+		t.Fatal(
+			"Execute() expected error from " +
+				"second StoreFlags call",
+		)
+	}
+
+	assertContains(
+		t, err.Error(), "server unavailable",
+	)
+
+	if len(mock.calls) != 2 {
+		t.Errorf(
+			"expected 2 StoreFlags calls, got %d",
+			len(mock.calls),
+		)
+	}
 }

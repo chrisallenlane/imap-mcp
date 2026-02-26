@@ -308,11 +308,26 @@ func TestListMailboxes_NoAnnotationForRegularAttrs(
 	}
 
 	assertContains(t, result, "Regular")
-	if strings.Contains(result, "(") {
-		t.Error(
-			"result should not contain annotation " +
-				"for non-special-use attrs",
-		)
+
+	// Verify no special-use labels appear in the output.
+	specialLabels := []string{
+		"(archive)",
+		"(drafts)",
+		"(sent)",
+		"(trash)",
+		"(junk)",
+		"(flagged)",
+		"(all mail)",
+		"(important)",
+	}
+	for _, label := range specialLabels {
+		if strings.Contains(result, label) {
+			t.Errorf(
+				"result should not contain %q "+
+					"for non-special-use attrs",
+				label,
+			)
+		}
 	}
 }
 

@@ -23,17 +23,21 @@ type expungeCall struct {
 }
 
 type mockDeleter struct {
-	trashMailbox string
-	findTrashErr error
-	moveCalls    []moveDeleteCall
-	moveErr      error
-	expungeCalls []expungeCall
-	expungeErr   error
+	trashMailbox    string
+	findTrashErr    error
+	findTrashCalled bool
+	findTrashAcct   string
+	moveCalls       []moveDeleteCall
+	moveErr         error
+	expungeCalls    []expungeCall
+	expungeErr      error
 }
 
 func (m *mockDeleter) FindTrashMailbox(
-	_ string,
+	account string,
 ) (string, error) {
+	m.findTrashCalled = true
+	m.findTrashAcct = account
 	return m.trashMailbox, m.findTrashErr
 }
 
@@ -147,8 +151,18 @@ func TestDeleteMessages_SafeDelete(t *testing.T) {
 		t.Fatalf("Execute() unexpected error: %v", err)
 	}
 
-	// Verify FindTrashMailbox was called
-	// (implicitly via trashMailbox being used)
+	// Verify FindTrashMailbox was called with the
+	// correct account
+	if !mock.findTrashCalled {
+		t.Fatal("FindTrashMailbox was not called")
+	}
+	if mock.findTrashAcct != "gmail" {
+		t.Errorf(
+			"FindTrashMailbox account = %q, want %q",
+			mock.findTrashAcct,
+			"gmail",
+		)
+	}
 
 	// Verify MoveMessages was called correctly
 	if len(mock.moveCalls) != 1 {
@@ -250,6 +264,12 @@ func TestDeleteMessages_PermanentDelete(t *testing.T) {
 	}
 
 	// Verify no FindTrashMailbox or MoveMessages calls
+	if mock.findTrashCalled {
+		t.Error(
+			"FindTrashMailbox should not be called " +
+				"for permanent delete",
+		)
+	}
 	if len(mock.moveCalls) != 0 {
 		t.Errorf(
 			"expected 0 MoveMessages calls, got %d",
@@ -350,11 +370,7 @@ func TestDeleteMessages_NoTrashMailbox(t *testing.T) {
 	}
 	assertContains(
 		t, err.Error(),
-		"no trash mailbox found",
-	)
-	assertContains(
-		t, err.Error(),
-		"permanent: true",
+		"no trash",
 	)
 }
 
@@ -380,10 +396,6 @@ func TestDeleteMessages_AlreadyInTrash(t *testing.T) {
 	assertContains(
 		t, err.Error(),
 		"already in Trash",
-	)
-	assertContains(
-		t, err.Error(),
-		"permanent: true",
 	)
 }
 

@@ -521,6 +521,36 @@ func TestGetMessage_NilEnvelope(t *testing.T) {
 	assertContains(t, result, "no envelope data")
 }
 
+func TestGetMessage_NoBodySection(t *testing.T) {
+	mock := &mockMessageGetter{
+		messages: []*imapclient.FetchMessageBuffer{
+			mockMsg(
+				imap.UID(700),
+				[]imap.Flag{imap.FlagSeen},
+				standardEnvelope(),
+				nil,
+			),
+		},
+	}
+	tool := NewGetMessage(mock)
+
+	result, err := tool.Execute(
+		context.Background(),
+		json.RawMessage(
+			`{"account":"a",`+
+				`"mailbox":"INBOX","uid":700}`,
+		),
+	)
+	if err != nil {
+		t.Fatalf("Execute() unexpected error: %v", err)
+	}
+
+	assertContains(t, result, "Message UID 700")
+	assertContains(
+		t, result, "no body data available",
+	)
+}
+
 func TestGetMessage_MissingAccount(t *testing.T) {
 	tool := NewGetMessage(&mockMessageGetter{})
 

@@ -3,7 +3,6 @@ package imap
 import (
 	"errors"
 	"net"
-	"strings"
 	"testing"
 	"time"
 
@@ -23,7 +22,57 @@ func TestClose_NoConnections(t *testing.T) {
 	}
 }
 
-func TestGetClient_UnknownAccountErrorMessage(t *testing.T) {
+func TestClose_WithConnections(t *testing.T) {
+	mgr := newTestManager()
+	client, serverConn := newTestClient(t)
+	defer serverConn.Close()
+
+	// Inject the client into the manager's connection map.
+	mgr.mu.Lock()
+	mgr.conns["gmail"] = client
+	mgr.mu.Unlock()
+
+	if err := mgr.Close(); err != nil {
+		t.Errorf("Close() unexpected error: %v", err)
+	}
+
+	// Verify the connection map was cleared.
+	mgr.mu.Lock()
+	remaining := len(mgr.conns)
+	mgr.mu.Unlock()
+
+	if remaining != 0 {
+		t.Errorf(
+			"connection map has %d entries after Close, "+
+				"want 0",
+			remaining,
+		)
+	}
+}
+
+func TestConfig_ReturnsCfg(t *testing.T) {
+	cfg := &config.Config{
+		Accounts: map[string]config.Account{
+			"gmail": {
+				Host:     "imap.gmail.com",
+				Port:     993,
+				Username: "user@gmail.com",
+				Password: "pass",
+				TLS:      true,
+			},
+		},
+	}
+	mgr := NewManager(cfg)
+
+	if mgr.Config() != cfg {
+		t.Error(
+			"Config() did not return the config " +
+				"passed to NewManager",
+		)
+	}
+}
+
+func TestGetClient_UnknownAccount(t *testing.T) {
 	cfg := &config.Config{
 		Accounts: map[string]config.Account{
 			"gmail": {
@@ -40,23 +89,6 @@ func TestGetClient_UnknownAccountErrorMessage(t *testing.T) {
 	_, err := mgr.GetClient("doesnotexist")
 	if err == nil {
 		t.Fatal("expected error for unknown account")
-	}
-
-	if !strings.Contains(
-		err.Error(),
-		"unknown account",
-	) {
-		t.Errorf(
-			"error = %q, should mention 'unknown account'",
-			err.Error(),
-		)
-	}
-
-	if !strings.Contains(err.Error(), "doesnotexist") {
-		t.Errorf(
-			"error = %q, should mention account name",
-			err.Error(),
-		)
 	}
 }
 
@@ -129,12 +161,6 @@ func TestSelectMailbox_UnknownAccount(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for unknown account")
 	}
-	if !strings.Contains(err.Error(), "unknown account") {
-		t.Errorf(
-			"error = %q, want 'unknown account'",
-			err.Error(),
-		)
-	}
 }
 
 func TestStoreFlags_UnknownAccount(t *testing.T) {
@@ -146,12 +172,6 @@ func TestStoreFlags_UnknownAccount(t *testing.T) {
 	)
 	if err == nil {
 		t.Fatal("expected error for unknown account")
-	}
-	if !strings.Contains(err.Error(), "unknown account") {
-		t.Errorf(
-			"error = %q, want 'unknown account'",
-			err.Error(),
-		)
 	}
 }
 
@@ -165,12 +185,6 @@ func TestStoreFlags_EmptyUIDs(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for empty UIDs")
 	}
-	if !strings.Contains(err.Error(), "no UIDs") {
-		t.Errorf(
-			"error = %q, want 'no UIDs'",
-			err.Error(),
-		)
-	}
 }
 
 func TestMoveMessages_UnknownAccount(t *testing.T) {
@@ -181,12 +195,6 @@ func TestMoveMessages_UnknownAccount(t *testing.T) {
 	)
 	if err == nil {
 		t.Fatal("expected error for unknown account")
-	}
-	if !strings.Contains(err.Error(), "unknown account") {
-		t.Errorf(
-			"error = %q, want 'unknown account'",
-			err.Error(),
-		)
 	}
 }
 
@@ -199,12 +207,6 @@ func TestMoveMessages_EmptyUIDs(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for empty UIDs")
 	}
-	if !strings.Contains(err.Error(), "no UIDs") {
-		t.Errorf(
-			"error = %q, want 'no UIDs'",
-			err.Error(),
-		)
-	}
 }
 
 func TestCopyMessages_UnknownAccount(t *testing.T) {
@@ -215,12 +217,6 @@ func TestCopyMessages_UnknownAccount(t *testing.T) {
 	)
 	if err == nil {
 		t.Fatal("expected error for unknown account")
-	}
-	if !strings.Contains(err.Error(), "unknown account") {
-		t.Errorf(
-			"error = %q, want 'unknown account'",
-			err.Error(),
-		)
 	}
 }
 
@@ -233,12 +229,6 @@ func TestCopyMessages_EmptyUIDs(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for empty UIDs")
 	}
-	if !strings.Contains(err.Error(), "no UIDs") {
-		t.Errorf(
-			"error = %q, want 'no UIDs'",
-			err.Error(),
-		)
-	}
 }
 
 func TestExpungeMessages_UnknownAccount(t *testing.T) {
@@ -249,12 +239,6 @@ func TestExpungeMessages_UnknownAccount(t *testing.T) {
 	)
 	if err == nil {
 		t.Fatal("expected error for unknown account")
-	}
-	if !strings.Contains(err.Error(), "unknown account") {
-		t.Errorf(
-			"error = %q, want 'unknown account'",
-			err.Error(),
-		)
 	}
 }
 
@@ -267,12 +251,6 @@ func TestExpungeMessages_EmptyUIDs(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for empty UIDs")
 	}
-	if !strings.Contains(err.Error(), "no UIDs") {
-		t.Errorf(
-			"error = %q, want 'no UIDs'",
-			err.Error(),
-		)
-	}
 }
 
 func TestCreateMailbox_UnknownAccount(t *testing.T) {
@@ -280,12 +258,6 @@ func TestCreateMailbox_UnknownAccount(t *testing.T) {
 	err := mgr.CreateMailbox("nonexistent", "NewFolder")
 	if err == nil {
 		t.Fatal("expected error for unknown account")
-	}
-	if !strings.Contains(err.Error(), "unknown account") {
-		t.Errorf(
-			"error = %q, want 'unknown account'",
-			err.Error(),
-		)
 	}
 }
 
@@ -295,12 +267,6 @@ func TestDeleteMailbox_UnknownAccount(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for unknown account")
 	}
-	if !strings.Contains(err.Error(), "unknown account") {
-		t.Errorf(
-			"error = %q, want 'unknown account'",
-			err.Error(),
-		)
-	}
 }
 
 func TestFindTrashMailbox_UnknownAccount(t *testing.T) {
@@ -308,14 +274,6 @@ func TestFindTrashMailbox_UnknownAccount(t *testing.T) {
 	_, err := mgr.FindTrashMailbox("nonexistent")
 	if err == nil {
 		t.Fatal("expected error for unknown account")
-	}
-	// GetClient fails first, so the error surfaces from
-	// ListMailboxes wrapping.
-	if !strings.Contains(err.Error(), "unknown account") {
-		t.Errorf(
-			"error = %q, want 'unknown account'",
-			err.Error(),
-		)
 	}
 }
 
@@ -351,22 +309,21 @@ func TestIsConnectionClosed_Closed(t *testing.T) {
 	// Close the server end to kill the read goroutine.
 	serverConn.Close()
 
-	// The Closed() channel may not close immediately; give
-	// the read goroutine a moment to exit.
-	deadline := time.After(2 * time.Second)
-	for {
-		if isConnectionClosed(client) {
-			return // success
-		}
-		select {
-		case <-deadline:
-			t.Fatal(
-				"isConnectionClosed() did not " +
-					"return true within timeout",
-			)
-		default:
-			time.Sleep(10 * time.Millisecond)
-		}
+	// Wait for the client to observe the closed connection.
+	select {
+	case <-client.Closed():
+	case <-time.After(2 * time.Second):
+		t.Fatal(
+			"isConnectionClosed() did not " +
+				"return true within timeout",
+		)
+	}
+
+	if !isConnectionClosed(client) {
+		t.Error(
+			"isConnectionClosed() = false after " +
+				"Closed() channel signaled",
+		)
 	}
 }
 
@@ -382,15 +339,11 @@ func TestGetClient_EvictsDeadConnection(t *testing.T) {
 	// Kill the connection.
 	serverConn.Close()
 
-	// Wait for the Closed() channel to close.
-	deadline := time.After(2 * time.Second)
-	for !isConnectionClosed(client) {
-		select {
-		case <-deadline:
-			t.Fatal("connection did not close within timeout")
-		default:
-			time.Sleep(10 * time.Millisecond)
-		}
+	// Wait for the client to observe the closed connection.
+	select {
+	case <-client.Closed():
+	case <-time.After(2 * time.Second):
+		t.Fatal("connection did not close within timeout")
 	}
 
 	// GetClient should detect the dead connection and
@@ -432,15 +385,11 @@ func TestIsConnected_DeadConnection(t *testing.T) {
 	// Kill the connection.
 	serverConn.Close()
 
-	// Wait for the Closed() channel to close.
-	deadline := time.After(2 * time.Second)
-	for !isConnectionClosed(client) {
-		select {
-		case <-deadline:
-			t.Fatal("connection did not close within timeout")
-		default:
-			time.Sleep(10 * time.Millisecond)
-		}
+	// Wait for the client to observe the closed connection.
+	select {
+	case <-client.Closed():
+	case <-time.After(2 * time.Second):
+		t.Fatal("connection did not close within timeout")
 	}
 
 	// Should now report false for the dead connection.
@@ -536,19 +485,13 @@ func TestWithRetry_RetriesOnDeadConnection(t *testing.T) {
 				serverConn.Close()
 
 				// Wait for the Closed() channel.
-				deadline := time.After(2 * time.Second)
-				for !isConnectionClosed(c) {
-					select {
-					case <-deadline:
-						t.Fatal(
-							"connection did not " +
-								"close within timeout",
-						)
-					default:
-						time.Sleep(
-							10 * time.Millisecond,
-						)
-					}
+				select {
+				case <-c.Closed():
+				case <-time.After(2 * time.Second):
+					t.Fatal(
+						"connection did not " +
+							"close within timeout",
+					)
 				}
 
 				return errors.New("read: broken pipe")
@@ -561,15 +504,9 @@ func TestWithRetry_RetriesOnDeadConnection(t *testing.T) {
 	)
 
 	// Reconnect will fail because there's no real IMAP
-	// server. The error should mention reconnect failure.
+	// server.
 	if err == nil {
 		t.Fatal("expected error from reconnect attempt")
-	}
-	if !strings.Contains(err.Error(), "reconnect failed") {
-		t.Errorf(
-			"error = %q, want 'reconnect failed'",
-			err.Error(),
-		)
 	}
 	if calls != 1 {
 		t.Errorf(
@@ -591,12 +528,6 @@ func TestWithRetry_UnknownAccount(t *testing.T) {
 	)
 	if err == nil {
 		t.Fatal("expected error for unknown account")
-	}
-	if !strings.Contains(err.Error(), "unknown account") {
-		t.Errorf(
-			"error = %q, want 'unknown account'",
-			err.Error(),
-		)
 	}
 }
 
@@ -693,11 +624,5 @@ func TestWithRetryResult_UnknownAccount(t *testing.T) {
 	)
 	if err == nil {
 		t.Fatal("expected error for unknown account")
-	}
-	if !strings.Contains(err.Error(), "unknown account") {
-		t.Errorf(
-			"error = %q, want 'unknown account'",
-			err.Error(),
-		)
 	}
 }

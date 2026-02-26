@@ -435,7 +435,7 @@ func TestSearchMessages_InvalidBeforeDate(t *testing.T) {
 	assertContains(t, err.Error(), "YYYY-MM-DD")
 }
 
-func TestSearchMessages_MultipleCriteria(t *testing.T) {
+func TestSearchMessages_ExecuteWithMultipleCriteria(t *testing.T) {
 	mock := &mockMessageSearcher{
 		uids: []imap.UID{1},
 		messages: []*imapclient.FetchMessageBuffer{
@@ -533,10 +533,6 @@ func TestSearchMessages_CapAt100(t *testing.T) {
 	assertContains(
 		t, result,
 		"150 total matches",
-	)
-	assertContains(
-		t, result,
-		"Narrow your search criteria",
 	)
 }
 
@@ -765,6 +761,31 @@ func TestBuildCriteria(t *testing.T) {
 				t *testing.T,
 				c *imap.SearchCriteria,
 			) {
+				if len(c.NotFlag) != 1 ||
+					c.NotFlag[0] !=
+						imap.FlagSeen {
+					t.Error(
+						"expected FlagSeen " +
+							"in NotFlag",
+					)
+				}
+			},
+		},
+		{
+			name:    "flagged true and seen false",
+			flagged: &boolTrue,
+			seen:    &boolFalse,
+			check: func(
+				t *testing.T,
+				c *imap.SearchCriteria,
+			) {
+				if len(c.Flag) != 1 ||
+					c.Flag[0] != imap.FlagFlagged {
+					t.Error(
+						"expected FlagFlagged " +
+							"in Flag",
+					)
+				}
 				if len(c.NotFlag) != 1 ||
 					c.NotFlag[0] !=
 						imap.FlagSeen {

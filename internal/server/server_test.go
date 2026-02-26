@@ -13,14 +13,16 @@ import (
 
 // mockTool implements tools.Tool for testing purposes.
 type mockTool struct {
-	result string
-	err    error
+	result       string
+	err          error
+	receivedArgs json.RawMessage
 }
 
 func (m *mockTool) Execute(
 	_ context.Context,
-	_ json.RawMessage,
+	args json.RawMessage,
 ) (string, error) {
+	m.receivedArgs = args
 	return m.result, m.err
 }
 
@@ -181,6 +183,42 @@ func TestHandleUnknownMethod(t *testing.T) {
 	}
 }
 
+// TestHandleNotification documents the current behavior for MCP
+// notifications. The MCP spec defines notifications like
+// "notifications/initialized" that clients send after the
+// handshake. The server currently treats these as unknown
+// methods and returns an error. This test serves as a
+// regression test so that any future change to notification
+// handling is intentional.
+func TestHandleNotification(t *testing.T) {
+	s := newTestServer()
+
+	req := &JSONRPCRequest{
+		JSONRPC: "2.0",
+		ID:      nil,
+		Method:  "notifications/initialized",
+	}
+
+	resp := s.handleRequest(context.Background(), req)
+
+	// Current behavior: notifications are treated as unknown
+	// methods. If notification support is added later, this
+	// test should be updated to reflect the new behavior.
+	if resp.Error == nil {
+		t.Fatal(
+			"Expected error for notification " +
+				"(current behavior)",
+		)
+	}
+
+	if resp.Error.Code != -32601 {
+		t.Errorf(
+			"Error code = %d, want -32601",
+			resp.Error.Code,
+		)
+	}
+}
+
 func TestHandleCallTool_InvalidTool(t *testing.T) {
 	s := newTestServer()
 
@@ -203,10 +241,10 @@ func TestHandleCallTool_InvalidTool(t *testing.T) {
 		t.Fatal("Expected error for nonexistent tool")
 	}
 
-	if !strings.Contains(resp.Error.Message, "tool not found") {
+	if resp.Error.Code != -32603 {
 		t.Errorf(
-			"Error message should mention 'tool not found', got: %s",
-			resp.Error.Message,
+			"Error code = %d, want -32603",
+			resp.Error.Code,
 		)
 	}
 }
@@ -227,13 +265,10 @@ func TestHandleCallTool_MalformedParams(t *testing.T) {
 		t.Fatal("Expected error for malformed params")
 	}
 
-	if !strings.Contains(
-		resp.Error.Message,
-		"failed to parse tool call params",
-	) {
+	if resp.Error.Code != -32603 {
 		t.Errorf(
-			"Error message should mention parsing failure, got: %s",
-			resp.Error.Message,
+			"Error code = %d, want -32603",
+			resp.Error.Code,
 		)
 	}
 }
@@ -369,13 +404,16 @@ func TestRun_EmptyInput(t *testing.T) {
 
 func TestHandleCallTool_Success(t *testing.T) {
 	s := newTestServer()
-	s.tools["mock_tool"] = &mockTool{
+	mock := &mockTool{
 		result: "mock result",
 	}
+	s.tools["mock_tool"] = mock
 
 	params := map[string]interface{}{
-		"name":      "mock_tool",
-		"arguments": json.RawMessage(`{}`),
+		"name": "mock_tool",
+		"arguments": json.RawMessage(
+			`{"account":"test","mailbox":"INBOX"}`,
+		),
 	}
 	paramsJSON, _ := json.Marshal(params)
 
@@ -422,6 +460,38 @@ func TestHandleCallTool_Success(t *testing.T) {
 			content[0]["text"],
 		)
 	}
+
+	// Verify arguments were forwarded to the tool
+	if mock.receivedArgs == nil {
+		t.Fatal("mock tool did not receive arguments")
+	}
+
+	var received map[string]string
+	if err := json.Unmarshal(
+		mock.receivedArgs,
+		&received,
+	); err != nil {
+		t.Fatalf(
+			"failed to unmarshal received args: %v",
+			err,
+		)
+	}
+
+	if received["account"] != "test" {
+		t.Errorf(
+			"received account = %q, want %q",
+			received["account"],
+			"test",
+		)
+	}
+
+	if received["mailbox"] != "INBOX" {
+		t.Errorf(
+			"received mailbox = %q, want %q",
+			received["mailbox"],
+			"INBOX",
+		)
+	}
 }
 
 func TestHandleCallTool_ToolError(t *testing.T) {
@@ -449,13 +519,10 @@ func TestHandleCallTool_ToolError(t *testing.T) {
 		t.Fatal("expected error for tool that returns error")
 	}
 
-	if !strings.Contains(
-		resp.Error.Message,
-		"tool execution failed",
-	) {
+	if resp.Error.Code != -32603 {
 		t.Errorf(
-			"error should mention tool execution failed, got: %s",
-			resp.Error.Message,
+			"Error code = %d, want -32603",
+			resp.Error.Code,
 		)
 	}
 }

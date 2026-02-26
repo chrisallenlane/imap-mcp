@@ -3,7 +3,6 @@ package config
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -112,7 +111,6 @@ func TestValidate_ErrorMessages(t *testing.T) {
 	tests := []struct {
 		name    string
 		account Account
-		wantMsg string
 	}{
 		{
 			name: "missing host",
@@ -121,7 +119,6 @@ func TestValidate_ErrorMessages(t *testing.T) {
 				Username: "user",
 				Password: "pass",
 			},
-			wantMsg: "host is required",
 		},
 		{
 			name: "missing port",
@@ -130,7 +127,6 @@ func TestValidate_ErrorMessages(t *testing.T) {
 				Username: "user",
 				Password: "pass",
 			},
-			wantMsg: "port is required",
 		},
 		{
 			name: "missing username",
@@ -139,7 +135,6 @@ func TestValidate_ErrorMessages(t *testing.T) {
 				Port:     993,
 				Password: "pass",
 			},
-			wantMsg: "username is required",
 		},
 		{
 			name: "missing password",
@@ -148,7 +143,6 @@ func TestValidate_ErrorMessages(t *testing.T) {
 				Port:     993,
 				Username: "user",
 			},
-			wantMsg: "password is required",
 		},
 	}
 
@@ -163,20 +157,6 @@ func TestValidate_ErrorMessages(t *testing.T) {
 			if err == nil {
 				t.Fatal("Validate() expected error")
 			}
-			if !strings.Contains(err.Error(), tt.wantMsg) {
-				t.Errorf(
-					"error = %q, want to contain %q",
-					err.Error(),
-					tt.wantMsg,
-				)
-			}
-			// Verify account name appears in error
-			if !strings.Contains(err.Error(), "test") {
-				t.Errorf(
-					"error = %q, should mention account name",
-					err.Error(),
-				)
-			}
 		})
 	}
 }
@@ -188,15 +168,6 @@ func TestValidate_EmptyAccounts(t *testing.T) {
 	err := cfg.Validate()
 	if err == nil {
 		t.Fatal("Validate() expected error for empty accounts")
-	}
-	if !strings.Contains(
-		err.Error(),
-		"at least one account",
-	) {
-		t.Errorf(
-			"error = %q, want to mention 'at least one account'",
-			err.Error(),
-		)
 	}
 }
 

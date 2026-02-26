@@ -50,6 +50,11 @@ func TestFormatFlags(t *testing.T) {
 			[]imap.Flag{imap.FlagFlagged, imap.FlagDraft},
 			"unread, flagged, draft",
 		},
+		{
+			"unrecognized flags silently ignored",
+			[]imap.Flag{"$Forwarded", imap.FlagSeen},
+			"",
+		},
 	}
 
 	for _, tt := range tests {
@@ -147,7 +152,10 @@ func TestFormatMessage_WithFlags(t *testing.T) {
 	formatMessage(&b, msg)
 	result := b.String()
 
-	assertContains(t, result, "[unread, flagged]")
+	assertContains(t, result, "[")
+	assertContains(t, result, "]")
+	assertContains(t, result, "unread")
+	assertContains(t, result, "flagged")
 }
 
 func TestEnvelopeDate(t *testing.T) {

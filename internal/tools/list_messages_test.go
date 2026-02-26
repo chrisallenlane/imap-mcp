@@ -507,17 +507,12 @@ func TestListMessages_NoFlagsForSeenOnly(t *testing.T) {
 		t.Fatalf("Execute() unexpected error: %v", err)
 	}
 
-	// A seen-only message should have no flag suffix.
-	// The UID line should not contain brackets.
-	for _, line := range strings.Split(result, "\n") {
-		if strings.Contains(line, "UID") &&
-			strings.Contains(line, "[") {
-			t.Error(
-				"seen-only message should not " +
-					"have flag brackets",
-			)
-		}
-	}
+	// A seen-only message should have no flag indicators.
+	assertNotContains(t, result, "[unread]")
+	assertNotContains(t, result, "[flagged]")
+	assertNotContains(t, result, "[replied]")
+	assertNotContains(t, result, "[draft]")
+	assertNotContains(t, result, "[deleted]")
 }
 
 func TestListMessages_DefaultPage(t *testing.T) {
@@ -637,6 +632,11 @@ func TestPageRange(t *testing.T) {
 		{
 			"negative page",
 			50, -1, 100,
+			0, 0, 0, true,
+		},
+		{
+			"zero page size",
+			50, 1, 0,
 			0, 0, 0, true,
 		},
 	}
