@@ -198,14 +198,3 @@ func TestListAccounts_NilArgs(t *testing.T) {
 
 	assertContains(t, result, "Configured accounts:")
 }
-
-func assertContains(t *testing.T, s, substr string) {
-	t.Helper()
-	if !strings.Contains(s, substr) {
-		t.Errorf(
-			"result does not contain %q\ngot:\n%s",
-			substr,
-			s,
-		)
-	}
-}

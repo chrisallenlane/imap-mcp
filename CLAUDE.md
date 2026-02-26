@@ -11,6 +11,7 @@ This file provides guidance to Claude Code when working with this codebase.
 - **Protocol**: MCP (Model Context Protocol) via JSON-RPC 2.0 over stdio
 - **Config**: TOML via `github.com/BurntSushi/toml`
 - **IMAP**: `github.com/emersion/go-imap/v2`
+- **MIME Parsing**: `github.com/emersion/go-message`
 
 ## Project Structure
 
@@ -32,12 +33,16 @@ imap-mcp/
 │   │   └── types.go             # JSON-RPC request/response types
 │   └── tools/                   # MCP tool implementations
 │       ├── tool.go              # Tool interface definition
+│       ├── format.go            # Shared formatting helpers (formatFlags, flagLabels)
+│       ├── helpers_test.go      # Shared test helpers (assertContains)
 │       ├── list_accounts.go     # list_accounts tool
 │       ├── list_accounts_test.go
 │       ├── list_mailboxes.go     # list_mailboxes tool
 │       ├── list_mailboxes_test.go
 │       ├── list_messages.go      # list_messages tool
-│       └── list_messages_test.go
+│       ├── list_messages_test.go
+│       ├── get_message.go        # get_message tool
+│       └── get_message_test.go
 ├── config.example.toml          # Example configuration file
 ├── Makefile                     # Build automation
 ├── CLAUDE.md                    # This file
@@ -101,6 +106,7 @@ Manages persistent IMAP connections per account with lazy initialization:
 - **`ListMailboxes(accountName)`** - Returns all mailboxes for an account (connects lazily if needed, issues IMAP LIST command)
 - **`ExamineMailbox(account, mailbox)`** - Selects a mailbox in read-only mode (IMAP EXAMINE) and returns metadata including message count
 - **`FetchMessages(account, seqSet, options)`** - Fetches message data (envelopes, flags, UIDs, etc.) for a given sequence set
+- **`FetchMessageByUID(account, mailbox, uid, options)`** - Fetches message data for a single message by UID (selects mailbox in read-only mode, then fetches via UID set)
 - **`IsConnected(accountName)`** - Checks if an account has an open connection (no side effects)
 - **`Config()`** - Returns the manager's config
 - **`Close()`** - Closes all open connections
@@ -296,12 +302,15 @@ Every new tool should have:
 ### Code Organization
 - One tool per file
 - Tool interface defined in `tool.go`
+- Shared formatting helpers (e.g., `formatFlags`, `flagLabels`) live in `format.go`
+- Shared test helpers (e.g., `assertContains`) live in `helpers_test.go`
 
 ## Current Tools
 
 - **`list_accounts`** - Lists all configured IMAP accounts with host, username, TLS status, and connection state. Takes no parameters. Does not initiate connections.
 - **`list_mailboxes`** - Lists all mailboxes for a given IMAP account with special-use annotations (archive, drafts, sent, trash, junk, flagged, all mail, important). INBOX is always listed first, remaining mailboxes sorted alphabetically. Takes required `account` parameter.
 - **`list_messages`** - Lists message envelopes in a mailbox with pagination (100 messages per page, newest first). Displays UID, date, sender, subject, and flag indicators (unread, flagged, replied, draft, deleted). Takes required `account` and `mailbox` parameters, optional `page` parameter (default: 1).
+- **`get_message`** - Retrieves a full email message by UID, including headers (From, To, CC, Date, Subject), flags, plain text body, and attachment metadata (filename, size, media type). HTML-only bodies are noted but not yet rendered. Body text is truncated at 1 MB. Takes required `account`, `mailbox`, and `uid` parameters.
 
 ## Configuration
 
@@ -357,6 +366,7 @@ Tools define narrow interfaces for the Manager methods they need (e.g., `mailbox
 
 - `github.com/BurntSushi/toml` - TOML config parsing
 - `github.com/emersion/go-imap/v2` - IMAP client
+- `github.com/emersion/go-message` - RFC 2822/MIME message parsing (used by `get_message` for body extraction and attachment metadata)
 
 ## Version Information
 

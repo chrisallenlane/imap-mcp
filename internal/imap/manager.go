@@ -115,6 +115,34 @@ func (m *Manager) FetchMessages(
 	return client.Fetch(seqSet, options).Collect()
 }
 
+// FetchMessageByUID fetches message data for the given UID
+// in the specified mailbox.
+func (m *Manager) FetchMessageByUID(
+	account string,
+	mailbox string,
+	uid imap.UID,
+	options *imap.FetchOptions,
+) ([]*imapclient.FetchMessageBuffer, error) {
+	client, err := m.GetClient(account)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = client.Select(
+		mailbox,
+		&imap.SelectOptions{ReadOnly: true},
+	).Wait()
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to examine mailbox: %w",
+			err,
+		)
+	}
+
+	uidSet := imap.UIDSetNum(uid)
+	return client.Fetch(uidSet, options).Collect()
+}
+
 // Close closes all open IMAP connections.
 func (m *Manager) Close() error {
 	m.mu.Lock()
