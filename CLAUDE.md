@@ -50,7 +50,9 @@ imap-mcp/
 │       ├── move_messages.go      # move_messages tool
 │       ├── move_messages_test.go
 │       ├── copy_messages.go      # copy_messages tool
-│       └── copy_messages_test.go
+│       ├── copy_messages_test.go
+│       ├── delete_messages.go    # delete_messages tool
+│       └── delete_messages_test.go
 ├── config.example.toml          # Example configuration file
 ├── Makefile                     # Build automation
 ├── CLAUDE.md                    # This file
@@ -338,6 +340,7 @@ Every new tool should have:
 - **`mark_messages`** - Sets or clears flags on messages. Supports `read` (boolean, maps to `\Seen`) and `flagged` (boolean, maps to `\Flagged`). At least one flag parameter is required. Uses pointer booleans to distinguish "not provided" from "false". Batches add/remove into minimal `StoreFlags` calls. Takes required `account`, `mailbox`, and `uids` parameters, plus optional `read` and `flagged` booleans.
 - **`move_messages`** - Moves messages from one mailbox to another via IMAP MOVE (RFC 6851). Destination must differ from source. After a move, source UIDs are invalidated (expected IMAP behavior). Takes required `account`, `mailbox`, `uids`, and `destination` parameters.
 - **`copy_messages`** - Copies messages from one mailbox to another via IMAP COPY. Original messages remain in the source mailbox. Destination must differ from source. Copied messages get new UIDs in the destination. Takes required `account`, `mailbox`, `uids`, and `destination` parameters.
+- **`delete_messages`** - Deletes messages by moving to Trash (default) or permanently expunging (`permanent: true`). Trash folder detected via SPECIAL-USE `\Trash` attribute. Returns error with guidance if no Trash folder found or messages are already in Trash. Permanent delete sets `\Deleted` flag then issues UID EXPUNGE. Takes required `account`, `mailbox`, and `uids` parameters, plus optional `permanent` boolean.
 
 ## Configuration
 

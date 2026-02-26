@@ -51,6 +51,7 @@ func (s *Server) registerTools() {
 	s.tools["mark_messages"] = tools.NewMarkMessages(s.imap)
 	s.tools["move_messages"] = tools.NewMoveMessages(s.imap)
 	s.tools["copy_messages"] = tools.NewCopyMessages(s.imap)
+	s.tools["delete_messages"] = tools.NewDeleteMessages(s.imap)
 }
 
 // Run starts the MCP server and processes requests

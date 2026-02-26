@@ -347,6 +347,23 @@ func (m *Manager) ExpungeMessages(
 	}
 
 	uidSet := imap.UIDSetNum(uids...)
+
+	// Set \Deleted flag first — UID EXPUNGE (RFC 4315) only
+	// removes messages that already have \Deleted.
+	storeFlags := &imap.StoreFlags{
+		Op:     imap.StoreFlagsAdd,
+		Silent: true,
+		Flags:  []imap.Flag{imap.FlagDeleted},
+	}
+	if err := client.Store(
+		uidSet, storeFlags, nil,
+	).Close(); err != nil {
+		return fmt.Errorf(
+			"failed to mark messages as deleted: %w",
+			err,
+		)
+	}
+
 	if err := client.UIDExpunge(uidSet).Close(); err != nil {
 		return fmt.Errorf(
 			"failed to expunge messages: %w",
