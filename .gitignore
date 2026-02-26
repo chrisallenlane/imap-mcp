@@ -1,5 +1,5 @@
 # Binaries
-imap-mcp
+/imap-mcp
 dist/
 *.exe
 *.dll
