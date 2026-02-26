@@ -1,16 +1,58 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
-	"github.com/chrisallenlane/go-mcp-server/internal/client"
+	"github.com/chrisallenlane/imap-mcp/internal/config"
+	imapmanager "github.com/chrisallenlane/imap-mcp/internal/imap"
 )
 
+// mockTool implements tools.Tool for testing purposes.
+type mockTool struct {
+	result string
+	err    error
+}
+
+func (m *mockTool) Execute(
+	_ context.Context,
+	_ json.RawMessage,
+) (string, error) {
+	return m.result, m.err
+}
+
+func (m *mockTool) Description() string {
+	return "A mock tool for testing"
+}
+
+func (m *mockTool) InputSchema() map[string]interface{} {
+	return map[string]interface{}{
+		"type":       "object",
+		"properties": map[string]interface{}{},
+	}
+}
+
+func newTestServer() *Server {
+	cfg := &config.Config{
+		Accounts: map[string]config.Account{
+			"test": {
+				Host:     "localhost",
+				Port:     993,
+				Username: "user",
+				Password: "pass",
+				TLS:      true,
+			},
+		},
+	}
+	mgr := imapmanager.NewManager(cfg)
+	return New(mgr)
+}
+
 func TestHandleInitialize(t *testing.T) {
-	c := client.New("http://localhost")
-	s := New(c)
+	s := newTestServer()
 
 	req := &JSONRPCRequest{
 		JSONRPC: "2.0",
@@ -36,7 +78,6 @@ func TestHandleInitialize(t *testing.T) {
 		t.Fatal("Result should not be nil")
 	}
 
-	// Verify result structure
 	result, ok := resp.Result.(map[string]interface{})
 	if !ok {
 		t.Fatal("Result should be a map")
@@ -56,7 +97,11 @@ func TestHandleInitialize(t *testing.T) {
 	}
 
 	if serverInfo["name"] != ServerName {
-		t.Errorf("Server name = %s, want %s", serverInfo["name"], ServerName)
+		t.Errorf(
+			"Server name = %s, want %s",
+			serverInfo["name"],
+			ServerName,
+		)
 	}
 
 	if serverInfo["version"] != ServerVersion {
@@ -69,8 +114,7 @@ func TestHandleInitialize(t *testing.T) {
 }
 
 func TestHandleListTools(t *testing.T) {
-	c := client.New("http://localhost")
-	s := New(c)
+	s := newTestServer()
 
 	req := &JSONRPCRequest{
 		JSONRPC: "2.0",
@@ -98,46 +142,14 @@ func TestHandleListTools(t *testing.T) {
 		t.Fatal("tools should be a slice")
 	}
 
-	// Verify we have tools registered
-	if len(tools) == 0 {
-		t.Error("Expected at least one tool to be registered")
-	}
-
-	// Verify tool structure
-	for _, tool := range tools {
-		if _, ok := tool["name"]; !ok {
-			t.Error("Tool should have a name")
-		}
-		if _, ok := tool["description"]; !ok {
-			t.Error("Tool should have a description")
-		}
-		if _, ok := tool["inputSchema"]; !ok {
-			t.Error("Tool should have an inputSchema")
-		}
-	}
-
-	// Verify the echo tool exists
-	toolNames := make([]string, len(tools))
-	for i, tool := range tools {
-		toolNames[i] = tool["name"].(string)
-	}
-
-	expectedTool := "echo"
-	found := false
-	for _, name := range toolNames {
-		if name == expectedTool {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Errorf("Expected tool %s not found", expectedTool)
+	// No tools registered yet
+	if len(tools) != 0 {
+		t.Errorf("Expected 0 tools, got %d", len(tools))
 	}
 }
 
 func TestHandleUnknownMethod(t *testing.T) {
-	c := client.New("http://localhost")
-	s := New(c)
+	s := newTestServer()
 
 	req := &JSONRPCRequest{
 		JSONRPC: "2.0",
@@ -165,8 +177,7 @@ func TestHandleUnknownMethod(t *testing.T) {
 }
 
 func TestHandleCallTool_InvalidTool(t *testing.T) {
-	c := client.New("http://localhost")
-	s := New(c)
+	s := newTestServer()
 
 	params := map[string]interface{}{
 		"name":      "nonexistent_tool",
@@ -196,8 +207,7 @@ func TestHandleCallTool_InvalidTool(t *testing.T) {
 }
 
 func TestHandleCallTool_MalformedParams(t *testing.T) {
-	c := client.New("http://localhost")
-	s := New(c)
+	s := newTestServer()
 
 	req := &JSONRPCRequest{
 		JSONRPC: "2.0",
@@ -212,7 +222,10 @@ func TestHandleCallTool_MalformedParams(t *testing.T) {
 		t.Fatal("Expected error for malformed params")
 	}
 
-	if !containsString(resp.Error.Message, "failed to parse tool call params") {
+	if !containsString(
+		resp.Error.Message,
+		"failed to parse tool call params",
+	) {
 		t.Errorf(
 			"Error message should mention parsing failure, got: %s",
 			resp.Error.Message,
@@ -286,13 +299,331 @@ func TestJSONRPCError_Marshal(t *testing.T) {
 	}
 
 	if errorObj["code"].(float64) != -32600 {
-		t.Errorf("error code = %v, want -32600", errorObj["code"])
+		t.Errorf(
+			"error code = %v, want -32600",
+			errorObj["code"],
+		)
 	}
 
 	if errorObj["message"] != "Invalid Request" {
 		t.Errorf(
 			"error message = %v, want Invalid Request",
 			errorObj["message"],
+		)
+	}
+}
+
+func TestRun_Initialize(t *testing.T) {
+	s := newTestServer()
+
+	input := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}` + "\n"
+	stdin := strings.NewReader(input)
+	var stdout bytes.Buffer
+
+	err := s.Run(context.Background(), stdin, &stdout)
+	if err != nil {
+		t.Fatalf("Run() unexpected error: %v", err)
+	}
+
+	var resp JSONRPCResponse
+	if err := json.Unmarshal(stdout.Bytes(), &resp); err != nil {
+		t.Fatalf(
+			"failed to unmarshal response: %v",
+			err,
+		)
+	}
+
+	if resp.JSONRPC != "2.0" {
+		t.Errorf("JSONRPC = %s, want 2.0", resp.JSONRPC)
+	}
+	if resp.Error != nil {
+		t.Errorf("unexpected error: %+v", resp.Error)
+	}
+	if resp.Result == nil {
+		t.Fatal("Result should not be nil")
+	}
+}
+
+func TestRun_MultipleRequests(t *testing.T) {
+	s := newTestServer()
+
+	input := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}` +
+		"\n" +
+		`{"jsonrpc":"2.0","id":2,"method":"tools/list"}` +
+		"\n"
+	stdin := strings.NewReader(input)
+	var stdout bytes.Buffer
+
+	err := s.Run(context.Background(), stdin, &stdout)
+	if err != nil {
+		t.Fatalf("Run() unexpected error: %v", err)
+	}
+
+	// Each response is a newline-delimited JSON object
+	lines := strings.Split(
+		strings.TrimSpace(stdout.String()),
+		"\n",
+	)
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 response lines, got %d", len(lines))
+	}
+
+	var resp1 JSONRPCResponse
+	if err := json.Unmarshal(
+		[]byte(lines[0]),
+		&resp1,
+	); err != nil {
+		t.Fatalf("failed to unmarshal response 1: %v", err)
+	}
+
+	var resp2 JSONRPCResponse
+	if err := json.Unmarshal(
+		[]byte(lines[1]),
+		&resp2,
+	); err != nil {
+		t.Fatalf("failed to unmarshal response 2: %v", err)
+	}
+
+	if resp1.Error != nil {
+		t.Errorf("response 1 unexpected error: %+v", resp1.Error)
+	}
+	if resp2.Error != nil {
+		t.Errorf("response 2 unexpected error: %+v", resp2.Error)
+	}
+}
+
+func TestRun_MalformedJSON(t *testing.T) {
+	s := newTestServer()
+
+	input := "this is not json\n"
+	stdin := strings.NewReader(input)
+	var stdout bytes.Buffer
+
+	err := s.Run(context.Background(), stdin, &stdout)
+	if err != nil {
+		t.Fatalf("Run() unexpected error: %v", err)
+	}
+
+	var resp JSONRPCResponse
+	if err := json.Unmarshal(
+		stdout.Bytes(),
+		&resp,
+	); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	if resp.Error == nil {
+		t.Fatal("expected error response for malformed JSON")
+	}
+	if resp.Error.Code != -32700 {
+		t.Errorf(
+			"error code = %d, want -32700",
+			resp.Error.Code,
+		)
+	}
+}
+
+func TestRun_EmptyInput(t *testing.T) {
+	s := newTestServer()
+
+	stdin := strings.NewReader("")
+	var stdout bytes.Buffer
+
+	err := s.Run(context.Background(), stdin, &stdout)
+	if err != nil {
+		t.Fatalf("Run() unexpected error: %v", err)
+	}
+
+	if stdout.Len() != 0 {
+		t.Errorf(
+			"expected no output for empty input, got: %s",
+			stdout.String(),
+		)
+	}
+}
+
+func TestHandleCallTool_Success(t *testing.T) {
+	s := newTestServer()
+	s.tools["mock_tool"] = &mockTool{
+		result: "mock result",
+	}
+
+	params := map[string]interface{}{
+		"name":      "mock_tool",
+		"arguments": json.RawMessage(`{}`),
+	}
+	paramsJSON, _ := json.Marshal(params)
+
+	req := &JSONRPCRequest{
+		JSONRPC: "2.0",
+		ID:      6,
+		Method:  "tools/call",
+		Params:  paramsJSON,
+	}
+
+	resp := s.handleRequest(context.Background(), req)
+
+	if resp.Error != nil {
+		t.Fatalf("unexpected error: %+v", resp.Error)
+	}
+	if resp.Result == nil {
+		t.Fatal("Result should not be nil")
+	}
+
+	result, ok := resp.Result.(map[string]interface{})
+	if !ok {
+		t.Fatal("Result should be a map")
+	}
+
+	content, ok := result["content"].([]map[string]interface{})
+	if !ok {
+		t.Fatal("content should be a slice of maps")
+	}
+
+	if len(content) != 1 {
+		t.Fatalf("expected 1 content item, got %d", len(content))
+	}
+
+	if content[0]["type"] != "text" {
+		t.Errorf(
+			"content type = %v, want text",
+			content[0]["type"],
+		)
+	}
+
+	if content[0]["text"] != "mock result" {
+		t.Errorf(
+			"content text = %v, want mock result",
+			content[0]["text"],
+		)
+	}
+}
+
+func TestHandleCallTool_ToolError(t *testing.T) {
+	s := newTestServer()
+	s.tools["failing_tool"] = &mockTool{
+		err: context.DeadlineExceeded,
+	}
+
+	params := map[string]interface{}{
+		"name":      "failing_tool",
+		"arguments": json.RawMessage(`{}`),
+	}
+	paramsJSON, _ := json.Marshal(params)
+
+	req := &JSONRPCRequest{
+		JSONRPC: "2.0",
+		ID:      7,
+		Method:  "tools/call",
+		Params:  paramsJSON,
+	}
+
+	resp := s.handleRequest(context.Background(), req)
+
+	if resp.Error == nil {
+		t.Fatal("expected error for tool that returns error")
+	}
+
+	if !containsString(
+		resp.Error.Message,
+		"tool execution failed",
+	) {
+		t.Errorf(
+			"error should mention tool execution failed, got: %s",
+			resp.Error.Message,
+		)
+	}
+}
+
+func TestHandleListTools_WithRegisteredTools(t *testing.T) {
+	s := newTestServer()
+	s.tools["mock_tool"] = &mockTool{
+		result: "test",
+	}
+
+	req := &JSONRPCRequest{
+		JSONRPC: "2.0",
+		ID:      8,
+		Method:  "tools/list",
+	}
+
+	resp := s.handleRequest(context.Background(), req)
+
+	if resp.Error != nil {
+		t.Fatalf("unexpected error: %+v", resp.Error)
+	}
+
+	result, ok := resp.Result.(map[string]interface{})
+	if !ok {
+		t.Fatal("Result should be a map")
+	}
+
+	tools, ok := result["tools"].([]map[string]interface{})
+	if !ok {
+		t.Fatal("tools should be a slice")
+	}
+
+	if len(tools) != 1 {
+		t.Fatalf("expected 1 tool, got %d", len(tools))
+	}
+
+	if tools[0]["name"] != "mock_tool" {
+		t.Errorf(
+			"tool name = %v, want mock_tool",
+			tools[0]["name"],
+		)
+	}
+
+	if tools[0]["description"] != "A mock tool for testing" {
+		t.Errorf(
+			"tool description = %v, want A mock tool for testing",
+			tools[0]["description"],
+		)
+	}
+
+	if tools[0]["inputSchema"] == nil {
+		t.Error("tool inputSchema should not be nil")
+	}
+}
+
+func TestRun_ToolCallViaPipe(t *testing.T) {
+	s := newTestServer()
+	s.tools["mock_tool"] = &mockTool{
+		result: "piped result",
+	}
+
+	input := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mock_tool","arguments":{}}}` +
+		"\n"
+	stdin := strings.NewReader(input)
+	var stdout bytes.Buffer
+
+	err := s.Run(context.Background(), stdin, &stdout)
+	if err != nil {
+		t.Fatalf("Run() unexpected error: %v", err)
+	}
+
+	var resp JSONRPCResponse
+	if err := json.Unmarshal(
+		stdout.Bytes(),
+		&resp,
+	); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	if resp.Error != nil {
+		t.Fatalf("unexpected error: %+v", resp.Error)
+	}
+
+	// Verify the response contains our mock result
+	data, err := json.Marshal(resp.Result)
+	if err != nil {
+		t.Fatalf("failed to marshal result: %v", err)
+	}
+
+	if !containsString(string(data), "piped result") {
+		t.Errorf(
+			"response should contain 'piped result', got: %s",
+			string(data),
 		)
 	}
 }

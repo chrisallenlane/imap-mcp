@@ -1,6 +1,6 @@
 # paths
 makefile := $(realpath $(lastword $(MAKEFILE_LIST)))
-cmd_dir  := ./cmd/go-mcp-server
+cmd_dir  := ./cmd/imap-mcp
 dist_dir := ./dist
 
 # executables
@@ -13,9 +13,9 @@ BUILD_FLAGS := -ldflags="-s -w" -trimpath
 ## build: build an executable for your architecture
 .PHONY: build
 build: | clean $(dist_dir) fmt lint vet
-	$(GO) build $(BUILD_FLAGS) -o $(dist_dir)/go-mcp-server $(cmd_dir)
+	$(GO) build $(BUILD_FLAGS) -o $(dist_dir)/imap-mcp $(cmd_dir)
 
-## install: build and install go-mcp-server on your PATH
+## install: build and install imap-mcp on your PATH
 .PHONY: install
 install: build
 	$(GO) install $(BUILD_FLAGS) $(cmd_dir)

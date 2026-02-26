@@ -1,146 +1,85 @@
-# go-mcp-server
+# imap-mcp
 
-A template for building [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) servers in Go.
-
-This template provides a complete, production-ready foundation for creating MCP servers that integrate external services with Claude and other AI assistants.
+A [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server that provides IMAP email access to Claude and other AI assistants.
 
 ## Features
 
 - **Complete MCP Implementation**: Full JSON-RPC 2.0 over stdio
-- **Type-Safe Models**: Structured Go types with JSON marshaling
-- **HTTP Client Example**: Generic HTTP client with customizable authentication
-- **Tool System**: Clean interface for adding new capabilities
-- **Testing Infrastructure**: Comprehensive test examples
-- **Code Quality Tools**: Formatting, linting, and vetting built-in
+- **Multi-Account Support**: Configure multiple IMAP accounts in a single TOML file
+- **Lazy Connections**: IMAP connections are established on first use and reused
+- **TLS Support**: Configurable TLS or plaintext connections per account
+- **Tool System**: Clean interface for adding new email capabilities
 
 ## Project Structure
 
 ```
-go-mcp-server/
+imap-mcp/
 ├── cmd/
-│   └── go-mcp-server/    # Main application entry point
+│   └── imap-mcp/        # Main application entry point
 ├── internal/
-│   ├── client/           # HTTP client (customize for your API)
-│   ├── models/           # Data structures (replace with your models)
-│   ├── server/           # MCP JSON-RPC server (keep as-is)
-│   └── tools/            # Tool implementations (add yours here)
-├── Makefile              # Build automation
-└── README.md             # This file
+│   ├── config/          # TOML configuration parsing
+│   ├── imap/            # IMAP connection manager
+│   ├── server/          # MCP JSON-RPC server
+│   └── tools/           # Tool implementations
+├── config.example.toml  # Example configuration
+├── Makefile             # Build automation
+└── README.md            # This file
 ```
 
 ## Getting Started
 
 ### Prerequisites
 
-- Go 1.21 or later
+- Go 1.24 or later
 - Make (optional, but recommended)
 
 ### Installation
 
 ```bash
-# Clone this template
-git clone https://github.com/yourusername/go-mcp-server.git
-cd go-mcp-server
-
-# Install dependencies and build
-make install
+git clone https://github.com/chrisallenlane/imap-mcp.git
+cd imap-mcp
+make build
 ```
 
 ### Configuration
 
-Set environment variables for your API:
+Copy the example config and fill in your IMAP account details:
 
 ```bash
-export API_URL="https://api.example.com"
-# Add any other environment variables your server needs
+cp config.example.toml config.toml
 ```
+
+Edit `config.toml`:
+
+```toml
+[accounts.gmail]
+host     = "imap.gmail.com"
+port     = 993
+username = "user@gmail.com"
+password = "app-password"
+tls      = true
+
+[accounts.protonmail]
+host     = "127.0.0.1"
+port     = 1143
+username = "user@proton.me"
+password = "bridge-password"
+tls      = false
+```
+
+Each `[accounts.<name>]` section defines an IMAP account. All fields (host, port, username, password) are required. The `tls` field controls whether to use TLS or plaintext.
+
+`config.toml` is gitignored because it contains credentials.
 
 ### Running
 
 The MCP server communicates via stdin/stdout:
 
 ```bash
-# Direct execution
-./dist/go-mcp-server
-
-# Or via Claude Desktop (see SETUP.md)
+./dist/imap-mcp --config /path/to/config.toml
 ```
 
-## Customizing for Your Use Case
-
-### 1. Update Models (`internal/models/models.go`)
-
-Replace the placeholder models with your domain-specific types:
-
-```go
-type MyResource struct {
-    ID   int    `json:"id"`
-    Name string `json:"name"`
-    // Add your fields
-}
-```
-
-### 2. Customize HTTP Client (`internal/client/client.go`)
-
-Add authentication, custom headers, etc.:
-
-```go
-// Add your auth fields
-type Client struct {
-    BaseURL string
-    HTTPClient HTTPDoer
-    APIKey string  // Add your auth
-}
-
-// Update doRequest to include auth
-req.Header.Set("Authorization", "Bearer "+c.APIKey)
-```
-
-### 3. Create Tools (`internal/tools/`)
-
-Each tool needs:
-- Implementation file (e.g., `my_tool.go`)
-- Test file (e.g., `my_tool_test.go`)
-
-Example tool structure:
-
-```go
-type MyTool struct {
-    client *client.Client
-}
-
-func (t *MyTool) Execute(ctx context.Context, args json.RawMessage) (string, error) {
-    // Your implementation
-}
-
-func (t *MyTool) Description() string {
-    return "What your tool does"
-}
-
-func (t *MyTool) InputSchema() map[string]interface{} {
-    return map[string]interface{}{
-        "type": "object",
-        "properties": map[string]interface{}{
-            "param": map[string]interface{}{
-                "type": "string",
-                "description": "Parameter description",
-            },
-        },
-        "required": []string{"param"},
-    }
-}
-```
-
-### 4. Register Tools (`internal/server/server.go`)
-
-Add your tools to the `registerTools()` function:
-
-```go
-func (s *Server) registerTools() {
-    s.tools["echo"] = tools.NewEcho(s.client)
-    s.tools["my_tool"] = tools.NewMyTool(s.client)  // Add yours
-}
-```
+The `--config` flag is required. See SETUP.md for integration with Claude Desktop and Claude Code.
 
 ## Development
 
@@ -180,49 +119,31 @@ make check
 
 - **Formatting**: 80-column line wrapping with golines + gofumpt
 - **Testing**: Standard library `testing` package
-- **Dependencies**: Minimal - only Go stdlib for production code
 - **Error Handling**: Always wrap errors with context
-- **Type Safety**: Use structs, not `map[string]interface{}`
 
 ## Architecture
 
 ### MCP Protocol Flow
 
 ```
-Claude → stdin → JSON-RPC Request → Tool Execution → JSON-RPC Response → stdout → Claude
+Claude -> stdin -> JSON-RPC Request -> Tool Execution -> JSON-RPC Response -> stdout -> Claude
 ```
 
 ### Key Components
 
 - **Server** (`internal/server`): Handles JSON-RPC protocol
-- **Client** (`internal/client`): Makes HTTP requests to your API
+- **Config** (`internal/config`): Parses TOML configuration
+- **IMAP Manager** (`internal/imap`): Manages persistent IMAP connections
 - **Tools** (`internal/tools`): Implements MCP tools
-- **Models** (`internal/models`): Type-safe data structures
 
 ## License
 
 MIT License - see LICENSE file for details
 
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run `make check` to ensure code quality
-5. Submit a pull request
-
 ## Resources
 
 - [MCP Specification](https://modelcontextprotocol.io/)
 - [Go Documentation](https://golang.org/doc/)
-- [Standard Project Layout](https://github.com/golang-standards/project-layout)
-
-## Next Steps
-
-1. Customize `internal/models/` for your data structures
-2. Update `internal/client/` for your API authentication
-3. Create tools in `internal/tools/` for your use case
-4. Update `cmd/go-mcp-server/main.go` for configuration
-5. Test with Claude Desktop (see SETUP.md)
+- [go-imap/v2](https://pkg.go.dev/github.com/emersion/go-imap/v2)
 
 For detailed development guidance, see `CLAUDE.md`.

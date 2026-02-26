@@ -1,0 +1,13 @@
+[accounts.gmail]
+host     = "imap.gmail.com"
+port     = 993
+username = "user@gmail.com"
+password = "app-password"
+tls      = true
+
+[accounts.protonmail]
+host     = "127.0.0.1"
+port     = 1143
+username = "user@proton.me"
+password = "bridge-password"
+tls      = false

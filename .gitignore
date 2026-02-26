@@ -1,5 +1,5 @@
 # Binaries
-go-mcp-server
+imap-mcp
 dist/
 *.exe
 *.dll
@@ -26,5 +26,6 @@ coverage.html
 Thumbs.db
 
 # Config files with credentials
+config.toml
 config.json
 .env

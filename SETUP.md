@@ -4,32 +4,49 @@
 
 1. **Build the server**:
    ```bash
-   cd ~/path/to/go-mcp-server
+   cd ~/path/to/imap-mcp
    make build
-   # Binary: dist/go-mcp-server
+   # Binary: dist/imap-mcp
    ```
 
-2. **Set environment variables**:
+2. **Create a config file**:
    ```bash
-   export API_URL="https://api.example.com"
-   # Add any other required environment variables
+   cp config.example.toml config.toml
+   # Edit config.toml with your IMAP account details
    ```
 
 3. **Test the server** (optional):
    ```bash
-   echo '{"jsonrpc":"2.0","id":1,"method":"initialize"}' | ./dist/go-mcp-server
+   echo '{"jsonrpc":"2.0","id":1,"method":"initialize"}' | ./dist/imap-mcp --config config.toml
    ```
 
-## Configuration
+## Configuration File
 
-### For Claude Code (CLI)
+The server requires a TOML config file specifying one or more IMAP accounts:
+
+```toml
+[accounts.gmail]
+host     = "imap.gmail.com"
+port     = 993
+username = "user@gmail.com"
+password = "app-password"
+tls      = true
+```
+
+All fields (host, port, username, password) are required per account. Set `tls = true` for TLS connections (port 993) or `tls = false` for plaintext (e.g., local IMAP bridges).
+
+`config.toml` is gitignored because it contains credentials. See `config.example.toml` for a full example.
+
+## Integration
+
+### Claude Code (CLI)
 
 Use the `claude mcp add` command to configure the server:
 
 ```bash
-claude mcp add my-server /path/to/dist/go-mcp-server \
+claude mcp add imap-mcp /path/to/dist/imap-mcp \
   -s user \
-  -e API_URL=https://api.example.com
+  --args -- --config /path/to/config.toml
 ```
 
 **Scope options:**
@@ -40,9 +57,9 @@ claude mcp add my-server /path/to/dist/go-mcp-server \
 **Verify configuration:**
 ```bash
 claude mcp list
-# Should show "my-server" in the list
+# Should show "imap-mcp" in the list
 
-claude mcp get my-server
+claude mcp get imap-mcp
 # Shows configuration details
 ```
 
@@ -50,7 +67,7 @@ claude mcp get my-server
 The MCP tools will be automatically available. Test by asking:
 > "What MCP tools are available?"
 
-### For Claude Desktop
+### Claude Desktop
 
 Add to your Claude Desktop configuration file:
 
@@ -61,11 +78,9 @@ Add to your Claude Desktop configuration file:
 ```json
 {
   "mcpServers": {
-    "my-mcp-server": {
-      "command": "/path/to/dist/go-mcp-server",
-      "env": {
-        "API_URL": "https://api.example.com"
-      }
+    "imap-mcp": {
+      "command": "/path/to/dist/imap-mcp",
+      "args": ["--config", "/path/to/config.toml"]
     }
   }
 }
@@ -91,10 +106,10 @@ After making changes:
 make build
 
 # For Claude Code: remove and re-add
-claude mcp remove my-server
-claude mcp add my-server /path/to/dist/go-mcp-server \
+claude mcp remove imap-mcp
+claude mcp add imap-mcp /path/to/dist/imap-mcp \
   -s user \
-  -e API_URL=https://api.example.com
+  --args -- --config /path/to/config.toml
 
 # For Claude Desktop: just restart the app
 ```
@@ -108,19 +123,22 @@ claude mcp add my-server /path/to/dist/go-mcp-server \
 claude mcp list
 
 # Check configuration details
-claude mcp get my-server
+claude mcp get imap-mcp
 
 # Try removing and re-adding
-claude mcp remove my-server
-claude mcp add my-server /path/to/dist/go-mcp-server -s user
+claude mcp remove imap-mcp
+claude mcp add imap-mcp /path/to/dist/imap-mcp \
+  -s user \
+  --args -- --config /path/to/config.toml
 ```
 
 ### Tools not working
 
-1. Check environment variables are set correctly
-2. Verify the binary has execute permissions: `chmod +x dist/go-mcp-server`
-3. Test the server directly with stdin/stdout
-4. Check Claude logs for errors
+1. Verify the config file exists and is valid TOML
+2. Check that IMAP credentials are correct
+3. Verify the binary has execute permissions: `chmod +x dist/imap-mcp`
+4. Test the server directly with stdin/stdout
+5. Check Claude logs for errors
 
 ### Binary not found
 
@@ -128,48 +146,15 @@ Make sure you're using the absolute path to the binary:
 
 ```bash
 # Good
-claude mcp add my-server /home/user/go-mcp-server/dist/go-mcp-server
+claude mcp add imap-mcp /home/user/imap-mcp/dist/imap-mcp
 
 # Bad (relative path may not work)
-claude mcp add my-server ./dist/go-mcp-server
-```
-
-## Environment Variables
-
-Common environment variables you might need:
-
-```bash
-# API Configuration
-API_URL=https://api.example.com
-API_KEY=your-api-key
-
-# Authentication
-USERNAME=your-username
-PASSWORD=your-password
-
-# Optional settings
-DEBUG=true
-TIMEOUT=30
+claude mcp add imap-mcp ./dist/imap-mcp
 ```
 
 ## Security Notes
 
-- Store sensitive credentials in environment variables, not in code
-- Use `claude mcp add` with env flags rather than hardcoding secrets
-- Consider using a credential manager for production use
-- The MCP server runs locally and communicates via stdio (no network exposure)
-
-## Testing Your Configuration
-
-After setup, test your MCP server:
-
-1. **Start a Claude session**
-2. **Ask Claude**: "What MCP tools are available?"
-3. **Try your tools**: "Use the echo tool to say hello"
-
-## Next Steps
-
-- Customize `internal/tools/` with your own tools
-- Update `internal/models/` for your data structures
-- Add authentication to `internal/client/` if needed
-- See `CLAUDE.md` for development guidance
+- Store IMAP credentials in `config.toml`, which is gitignored
+- Do not commit `config.toml` to version control
+- Consider file permissions on `config.toml` (e.g., `chmod 600 config.toml`)
+- The MCP server runs locally and communicates via stdio (no network exposure beyond IMAP connections)
