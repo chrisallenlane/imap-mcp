@@ -55,6 +55,11 @@ coverage:
 	@echo "HTML coverage report: coverage.html"
 	$(GO) tool cover -html=coverage.out -o coverage.html
 
+## fuzz: run fuzz tests (FUZZTIME=30s by default)
+.PHONY: fuzz
+fuzz:
+	./scripts/fuzz.sh
+
 ## check: format, lint, vet, and test
 .PHONY: check
 check: | fmt lint vet test
