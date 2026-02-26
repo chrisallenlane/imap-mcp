@@ -747,6 +747,27 @@ func TestFormatAddress(t *testing.T) {
 	}
 }
 
+func TestParseBody_Truncation(t *testing.T) {
+	// Build a body exceeding maxBodySize (1 MB).
+	bigBody := strings.Repeat("A", maxBodySize+100)
+	raw := makeRawMessage("text/plain", bigBody)
+
+	body, _, err := parseBody(raw)
+	if err != nil {
+		t.Fatalf("parseBody() unexpected error: %v", err)
+	}
+
+	if len(body) <= maxBodySize {
+		t.Errorf(
+			"expected body length > %d (includes suffix), got %d",
+			maxBodySize,
+			len(body),
+		)
+	}
+
+	assertContains(t, body, "[body truncated at 1 MB]")
+}
+
 func TestFormatAddresses(t *testing.T) {
 	tests := []struct {
 		name  string

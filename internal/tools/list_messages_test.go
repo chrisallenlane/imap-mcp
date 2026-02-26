@@ -507,19 +507,15 @@ func TestListMessages_NoFlagsForSeenOnly(t *testing.T) {
 		t.Fatalf("Execute() unexpected error: %v", err)
 	}
 
-	if strings.Contains(result, "[") &&
-		strings.Contains(result, "]") {
-		// Check it's not a flag bracket (could be mailbox
-		// name brackets, but our mailbox is INBOX).
-		lines := strings.Split(result, "\n")
-		for _, line := range lines {
-			if strings.Contains(line, "UID") &&
-				strings.Contains(line, "[") {
-				t.Error(
-					"seen-only message should not " +
-						"have flag brackets",
-				)
-			}
+	// A seen-only message should have no flag suffix.
+	// The UID line should not contain brackets.
+	for _, line := range strings.Split(result, "\n") {
+		if strings.Contains(line, "UID") &&
+			strings.Contains(line, "[") {
+			t.Error(
+				"seen-only message should not " +
+					"have flag brackets",
+			)
 		}
 	}
 }
