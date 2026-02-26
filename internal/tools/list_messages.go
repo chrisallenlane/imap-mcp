@@ -167,6 +167,13 @@ func pageRange(
 	total uint32,
 	page, pageSz int,
 ) (lo, hi uint32, totalPages int, err error) {
+	if pageSz < 1 {
+		return 0, 0, 0, fmt.Errorf(
+			"pageSz must be >= 1, got %d",
+			pageSz,
+		)
+	}
+
 	if page < 1 {
 		return 0, 0, 0, fmt.Errorf(
 			"page must be >= 1, got %d",
