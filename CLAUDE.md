@@ -35,7 +35,9 @@ imap-mcp/
 │       ├── list_accounts.go     # list_accounts tool
 │       ├── list_accounts_test.go
 │       ├── list_mailboxes.go     # list_mailboxes tool
-│       └── list_mailboxes_test.go
+│       ├── list_mailboxes_test.go
+│       ├── list_messages.go      # list_messages tool
+│       └── list_messages_test.go
 ├── config.example.toml          # Example configuration file
 ├── Makefile                     # Build automation
 ├── CLAUDE.md                    # This file
@@ -97,6 +99,8 @@ Manages persistent IMAP connections per account with lazy initialization:
 - **`NewManager(cfg)`** - Creates a manager from config
 - **`GetClient(accountName)`** - Returns an IMAP client, connecting on first use
 - **`ListMailboxes(accountName)`** - Returns all mailboxes for an account (connects lazily if needed, issues IMAP LIST command)
+- **`ExamineMailbox(account, mailbox)`** - Selects a mailbox in read-only mode (IMAP EXAMINE) and returns metadata including message count
+- **`FetchMessages(account, seqSet, options)`** - Fetches message data (envelopes, flags, UIDs, etc.) for a given sequence set
 - **`IsConnected(accountName)`** - Checks if an account has an open connection (no side effects)
 - **`Config()`** - Returns the manager's config
 - **`Close()`** - Closes all open connections
@@ -297,6 +301,7 @@ Every new tool should have:
 
 - **`list_accounts`** - Lists all configured IMAP accounts with host, username, TLS status, and connection state. Takes no parameters. Does not initiate connections.
 - **`list_mailboxes`** - Lists all mailboxes for a given IMAP account with special-use annotations (archive, drafts, sent, trash, junk, flagged, all mail, important). INBOX is always listed first, remaining mailboxes sorted alphabetically. Takes required `account` parameter.
+- **`list_messages`** - Lists message envelopes in a mailbox with pagination (100 messages per page, newest first). Displays UID, date, sender, subject, and flag indicators (unread, flagged, replied, draft, deleted). Takes required `account` and `mailbox` parameters, optional `page` parameter (default: 1).
 
 ## Configuration
 

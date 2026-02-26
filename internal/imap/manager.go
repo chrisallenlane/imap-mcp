@@ -86,6 +86,35 @@ func (m *Manager) ListMailboxes(
 	return listCmd.Collect()
 }
 
+// ExamineMailbox selects a mailbox in read-only mode (EXAMINE)
+// and returns metadata.
+func (m *Manager) ExamineMailbox(
+	account, mailbox string,
+) (*imap.SelectData, error) {
+	client, err := m.GetClient(account)
+	if err != nil {
+		return nil, err
+	}
+	return client.Select(
+		mailbox,
+		&imap.SelectOptions{ReadOnly: true},
+	).Wait()
+}
+
+// FetchMessages fetches message data for the given sequence
+// set with the given options.
+func (m *Manager) FetchMessages(
+	account string,
+	seqSet imap.SeqSet,
+	options *imap.FetchOptions,
+) ([]*imapclient.FetchMessageBuffer, error) {
+	client, err := m.GetClient(account)
+	if err != nil {
+		return nil, err
+	}
+	return client.Fetch(seqSet, options).Collect()
+}
+
 // Close closes all open IMAP connections.
 func (m *Manager) Close() error {
 	m.mu.Lock()
