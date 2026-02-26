@@ -52,7 +52,11 @@ imap-mcp/
 │       ├── copy_messages.go      # copy_messages tool
 │       ├── copy_messages_test.go
 │       ├── delete_messages.go    # delete_messages tool
-│       └── delete_messages_test.go
+│       ├── delete_messages_test.go
+│       ├── create_mailbox.go     # create_mailbox tool
+│       ├── create_mailbox_test.go
+│       ├── delete_mailbox.go     # delete_mailbox tool
+│       └── delete_mailbox_test.go
 ├── config.example.toml          # Example configuration file
 ├── Makefile                     # Build automation
 ├── CLAUDE.md                    # This file
@@ -341,6 +345,8 @@ Every new tool should have:
 - **`move_messages`** - Moves messages from one mailbox to another via IMAP MOVE (RFC 6851). Destination must differ from source. After a move, source UIDs are invalidated (expected IMAP behavior). Takes required `account`, `mailbox`, `uids`, and `destination` parameters.
 - **`copy_messages`** - Copies messages from one mailbox to another via IMAP COPY. Original messages remain in the source mailbox. Destination must differ from source. Copied messages get new UIDs in the destination. Takes required `account`, `mailbox`, `uids`, and `destination` parameters.
 - **`delete_messages`** - Deletes messages by moving to Trash (default) or permanently expunging (`permanent: true`). Trash folder detected via SPECIAL-USE `\Trash` attribute. Returns error with guidance if no Trash folder found or messages are already in Trash. Permanent delete sets `\Deleted` flag then issues UID EXPUNGE. Takes required `account`, `mailbox`, and `uids` parameters, plus optional `permanent` boolean.
+- **`create_mailbox`** - Creates a new mailbox (folder) via IMAP CREATE. Intermediate hierarchy levels are created automatically by most servers. Takes required `account` and `name` parameters.
+- **`delete_mailbox`** - Deletes a mailbox (folder) via IMAP DELETE. Refuses to delete INBOX (case-insensitive) or any mailbox with SPECIAL-USE attributes (`\Sent`, `\Trash`, `\Drafts`, `\Junk`, `\Archive`, `\Flagged`). Takes required `account` and `name` parameters.
 
 ## Configuration
 
