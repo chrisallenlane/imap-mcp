@@ -3,6 +3,7 @@ package imap
 
 import (
 	"fmt"
+	"log"
 	"sync"
 
 	"github.com/chrisallenlane/imap-mcp/internal/config"
@@ -26,7 +27,8 @@ func NewManager(cfg *config.Config) *Manager {
 }
 
 // GetClient returns an IMAP client for the named account,
-// connecting lazily on first use.
+// connecting lazily on first use. If a cached connection is
+// dead, it is evicted and a fresh connection is established.
 func (m *Manager) GetClient(
 	accountName string,
 ) (*imapclient.Client, error) {
@@ -34,7 +36,17 @@ func (m *Manager) GetClient(
 	defer m.mu.Unlock()
 
 	if c, ok := m.conns[accountName]; ok {
-		return c, nil
+		if !isConnectionClosed(c) {
+			return c, nil
+		}
+
+		// Connection is dead -- close and evict.
+		log.Printf(
+			"connection to %q lost, reconnecting...",
+			accountName,
+		)
+		c.Close()
+		delete(m.conns, accountName)
 	}
 
 	acct, ok := m.config.Accounts[accountName]
@@ -59,12 +71,16 @@ func (m *Manager) GetClient(
 }
 
 // IsConnected reports whether the named account currently has an
-// open IMAP connection. It does not attempt to connect.
+// open IMAP connection. It does not attempt to connect. Returns
+// false if the cached connection is dead.
 func (m *Manager) IsConnected(accountName string) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	_, ok := m.conns[accountName]
-	return ok
+	c, ok := m.conns[accountName]
+	if !ok {
+		return false
+	}
+	return !isConnectionClosed(c)
 }
 
 // Config returns the manager's configuration.
@@ -72,18 +88,120 @@ func (m *Manager) Config() *config.Config {
 	return m.config
 }
 
+// isConnectionClosed performs a fast, non-blocking check on
+// whether the client's connection has been closed.
+func isConnectionClosed(c *imapclient.Client) bool {
+	select {
+	case <-c.Closed():
+		return true
+	default:
+		return false
+	}
+}
+
+// withRetry executes fn with an IMAP client. If fn returns an
+// error and the connection appears dead, it reconnects once and
+// retries. Only a single retry is attempted.
+func (m *Manager) withRetry(
+	account string,
+	fn func(c *imapclient.Client) error,
+) error {
+	client, err := m.GetClient(account)
+	if err != nil {
+		return err
+	}
+
+	if err := fn(client); err != nil {
+		if !isConnectionClosed(client) {
+			return err
+		}
+
+		// Evict the dead connection under lock.
+		m.mu.Lock()
+		if m.conns[account] == client {
+			client.Close()
+			delete(m.conns, account)
+		}
+		m.mu.Unlock()
+
+		log.Printf(
+			"connection to %q lost, reconnecting...",
+			account,
+		)
+
+		// GetClient will establish a new connection.
+		client, err = m.GetClient(account)
+		if err != nil {
+			return fmt.Errorf("reconnect failed: %w", err)
+		}
+
+		return fn(client)
+	}
+
+	return nil
+}
+
+// withRetryResult is like withRetry but for operations that
+// return a value alongside an error.
+func withRetryResult[T any](
+	m *Manager,
+	account string,
+	fn func(c *imapclient.Client) (T, error),
+) (T, error) {
+	client, err := m.GetClient(account)
+	if err != nil {
+		var zero T
+		return zero, err
+	}
+
+	result, err := fn(client)
+	if err != nil {
+		if !isConnectionClosed(client) {
+			var zero T
+			return zero, err
+		}
+
+		// Evict the dead connection under lock.
+		m.mu.Lock()
+		if m.conns[account] == client {
+			client.Close()
+			delete(m.conns, account)
+		}
+		m.mu.Unlock()
+
+		log.Printf(
+			"connection to %q lost, reconnecting...",
+			account,
+		)
+
+		// GetClient will establish a new connection.
+		client, err = m.GetClient(account)
+		if err != nil {
+			var zero T
+			return zero, fmt.Errorf(
+				"reconnect failed: %w",
+				err,
+			)
+		}
+
+		return fn(client)
+	}
+
+	return result, nil
+}
+
 // ListMailboxes returns all mailboxes for the named account.
 // It connects lazily if needed, then issues an IMAP LIST command.
 func (m *Manager) ListMailboxes(
 	account string,
 ) ([]*imap.ListData, error) {
-	client, err := m.GetClient(account)
-	if err != nil {
-		return nil, err
-	}
-
-	listCmd := client.List("", "*", nil)
-	return listCmd.Collect()
+	return withRetryResult(
+		m,
+		account,
+		func(c *imapclient.Client) ([]*imap.ListData, error) {
+			return c.List("", "*", nil).Collect()
+		},
+	)
 }
 
 // ExamineMailbox selects a mailbox in read-only mode (EXAMINE)
@@ -91,14 +209,16 @@ func (m *Manager) ListMailboxes(
 func (m *Manager) ExamineMailbox(
 	account, mailbox string,
 ) (*imap.SelectData, error) {
-	client, err := m.GetClient(account)
-	if err != nil {
-		return nil, err
-	}
-	return client.Select(
-		mailbox,
-		&imap.SelectOptions{ReadOnly: true},
-	).Wait()
+	return withRetryResult(
+		m,
+		account,
+		func(c *imapclient.Client) (*imap.SelectData, error) {
+			return c.Select(
+				mailbox,
+				&imap.SelectOptions{ReadOnly: true},
+			).Wait()
+		},
+	)
 }
 
 // FetchMessages fetches message data for the given sequence
@@ -108,11 +228,15 @@ func (m *Manager) FetchMessages(
 	seqSet imap.SeqSet,
 	options *imap.FetchOptions,
 ) ([]*imapclient.FetchMessageBuffer, error) {
-	client, err := m.GetClient(account)
-	if err != nil {
-		return nil, err
-	}
-	return client.Fetch(seqSet, options).Collect()
+	return withRetryResult(
+		m,
+		account,
+		func(
+			c *imapclient.Client,
+		) ([]*imapclient.FetchMessageBuffer, error) {
+			return c.Fetch(seqSet, options).Collect()
+		},
+	)
 }
 
 // FetchMessageByUID fetches message data for the given UID
@@ -123,17 +247,19 @@ func (m *Manager) FetchMessageByUID(
 	uid imap.UID,
 	options *imap.FetchOptions,
 ) ([]*imapclient.FetchMessageBuffer, error) {
-	client, err := m.GetClient(account)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := selectReadOnly(client, mailbox); err != nil {
-		return nil, err
-	}
-
-	uidSet := imap.UIDSetNum(uid)
-	return client.Fetch(uidSet, options).Collect()
+	return withRetryResult(
+		m,
+		account,
+		func(
+			c *imapclient.Client,
+		) ([]*imapclient.FetchMessageBuffer, error) {
+			if err := selectReadOnly(c, mailbox); err != nil {
+				return nil, err
+			}
+			uidSet := imap.UIDSetNum(uid)
+			return c.Fetch(uidSet, options).Collect()
+		},
+	)
 }
 
 // SearchMessages selects a mailbox in read-only mode and
@@ -142,21 +268,25 @@ func (m *Manager) SearchMessages(
 	account, mailbox string,
 	criteria *imap.SearchCriteria,
 ) ([]imap.UID, error) {
-	client, err := m.GetClient(account)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := selectReadOnly(client, mailbox); err != nil {
-		return nil, err
-	}
-
-	searchData, err := client.UIDSearch(criteria, nil).Wait()
-	if err != nil {
-		return nil, fmt.Errorf("search failed: %w", err)
-	}
-
-	return searchData.AllUIDs(), nil
+	return withRetryResult(
+		m,
+		account,
+		func(c *imapclient.Client) ([]imap.UID, error) {
+			if err := selectReadOnly(c, mailbox); err != nil {
+				return nil, err
+			}
+			searchData, err := c.UIDSearch(
+				criteria, nil,
+			).Wait()
+			if err != nil {
+				return nil, fmt.Errorf(
+					"search failed: %w",
+					err,
+				)
+			}
+			return searchData.AllUIDs(), nil
+		},
+	)
 }
 
 // FetchMessagesByUID fetches messages for multiple UIDs
@@ -166,17 +296,19 @@ func (m *Manager) FetchMessagesByUID(
 	uids []imap.UID,
 	options *imap.FetchOptions,
 ) ([]*imapclient.FetchMessageBuffer, error) {
-	client, err := m.GetClient(account)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := selectReadOnly(client, mailbox); err != nil {
-		return nil, err
-	}
-
-	uidSet := imap.UIDSetNum(uids...)
-	return client.Fetch(uidSet, options).Collect()
+	return withRetryResult(
+		m,
+		account,
+		func(
+			c *imapclient.Client,
+		) ([]*imapclient.FetchMessageBuffer, error) {
+			if err := selectReadOnly(c, mailbox); err != nil {
+				return nil, err
+			}
+			uidSet := imap.UIDSetNum(uids...)
+			return c.Fetch(uidSet, options).Collect()
+		},
+	)
 }
 
 // selectReadOnly selects a mailbox in read-only mode.
@@ -220,14 +352,16 @@ func selectReadWrite(
 func (m *Manager) SelectMailbox(
 	account, mailbox string,
 ) (*imap.SelectData, error) {
-	client, err := m.GetClient(account)
-	if err != nil {
-		return nil, err
-	}
-	return client.Select(
-		mailbox,
-		&imap.SelectOptions{ReadOnly: false},
-	).Wait()
+	return withRetryResult(
+		m,
+		account,
+		func(c *imapclient.Client) (*imap.SelectData, error) {
+			return c.Select(
+				mailbox,
+				&imap.SelectOptions{ReadOnly: false},
+			).Wait()
+		},
+	)
 }
 
 // StoreFlags sets or clears flags on messages identified by UIDs.
@@ -241,28 +375,31 @@ func (m *Manager) StoreFlags(
 		return fmt.Errorf("no UIDs provided")
 	}
 
-	client, err := m.GetClient(account)
-	if err != nil {
-		return err
-	}
+	return m.withRetry(
+		account,
+		func(c *imapclient.Client) error {
+			if err := selectReadWrite(c, mailbox); err != nil {
+				return err
+			}
 
-	if err := selectReadWrite(client, mailbox); err != nil {
-		return err
-	}
+			uidSet := imap.UIDSetNum(uids...)
+			storeFlags := &imap.StoreFlags{
+				Op:     op,
+				Silent: true,
+				Flags:  flags,
+			}
 
-	uidSet := imap.UIDSetNum(uids...)
-	storeFlags := &imap.StoreFlags{
-		Op:     op,
-		Silent: true,
-		Flags:  flags,
-	}
+			cmd := c.Store(uidSet, storeFlags, nil)
+			if err := cmd.Close(); err != nil {
+				return fmt.Errorf(
+					"failed to store flags: %w",
+					err,
+				)
+			}
 
-	cmd := client.Store(uidSet, storeFlags, nil)
-	if err := cmd.Close(); err != nil {
-		return fmt.Errorf("failed to store flags: %w", err)
-	}
-
-	return nil
+			return nil
+		},
+	)
 }
 
 // MoveMessages moves messages identified by UIDs from one mailbox
@@ -276,24 +413,26 @@ func (m *Manager) MoveMessages(
 		return fmt.Errorf("no UIDs provided")
 	}
 
-	client, err := m.GetClient(account)
-	if err != nil {
-		return err
-	}
+	return m.withRetry(
+		account,
+		func(c *imapclient.Client) error {
+			if err := selectReadWrite(c, mailbox); err != nil {
+				return err
+			}
 
-	if err := selectReadWrite(client, mailbox); err != nil {
-		return err
-	}
+			uidSet := imap.UIDSetNum(uids...)
+			if _, err := c.Move(
+				uidSet, destMailbox,
+			).Wait(); err != nil {
+				return fmt.Errorf(
+					"failed to move messages: %w",
+					err,
+				)
+			}
 
-	uidSet := imap.UIDSetNum(uids...)
-	if _, err := client.Move(uidSet, destMailbox).Wait(); err != nil {
-		return fmt.Errorf(
-			"failed to move messages: %w",
-			err,
-		)
-	}
-
-	return nil
+			return nil
+		},
+	)
 }
 
 // CopyMessages copies messages identified by UIDs from one mailbox
@@ -307,24 +446,26 @@ func (m *Manager) CopyMessages(
 		return fmt.Errorf("no UIDs provided")
 	}
 
-	client, err := m.GetClient(account)
-	if err != nil {
-		return err
-	}
+	return m.withRetry(
+		account,
+		func(c *imapclient.Client) error {
+			if err := selectReadWrite(c, mailbox); err != nil {
+				return err
+			}
 
-	if err := selectReadWrite(client, mailbox); err != nil {
-		return err
-	}
+			uidSet := imap.UIDSetNum(uids...)
+			if _, err := c.Copy(
+				uidSet, destMailbox,
+			).Wait(); err != nil {
+				return fmt.Errorf(
+					"failed to copy messages: %w",
+					err,
+				)
+			}
 
-	uidSet := imap.UIDSetNum(uids...)
-	if _, err := client.Copy(uidSet, destMailbox).Wait(); err != nil {
-		return fmt.Errorf(
-			"failed to copy messages: %w",
-			err,
-		)
-	}
-
-	return nil
+			return nil
+		},
+	)
 }
 
 // ExpungeMessages permanently removes messages identified by UIDs
@@ -337,79 +478,77 @@ func (m *Manager) ExpungeMessages(
 		return fmt.Errorf("no UIDs provided")
 	}
 
-	client, err := m.GetClient(account)
-	if err != nil {
-		return err
-	}
+	return m.withRetry(
+		account,
+		func(c *imapclient.Client) error {
+			if err := selectReadWrite(c, mailbox); err != nil {
+				return err
+			}
 
-	if err := selectReadWrite(client, mailbox); err != nil {
-		return err
-	}
+			uidSet := imap.UIDSetNum(uids...)
 
-	uidSet := imap.UIDSetNum(uids...)
+			// Set \Deleted flag first -- UID EXPUNGE (RFC 4315)
+			// only removes messages that already have \Deleted.
+			storeFlags := &imap.StoreFlags{
+				Op:     imap.StoreFlagsAdd,
+				Silent: true,
+				Flags:  []imap.Flag{imap.FlagDeleted},
+			}
+			if err := c.Store(
+				uidSet, storeFlags, nil,
+			).Close(); err != nil {
+				return fmt.Errorf(
+					"failed to mark messages as deleted: %w",
+					err,
+				)
+			}
 
-	// Set \Deleted flag first — UID EXPUNGE (RFC 4315) only
-	// removes messages that already have \Deleted.
-	storeFlags := &imap.StoreFlags{
-		Op:     imap.StoreFlagsAdd,
-		Silent: true,
-		Flags:  []imap.Flag{imap.FlagDeleted},
-	}
-	if err := client.Store(
-		uidSet, storeFlags, nil,
-	).Close(); err != nil {
-		return fmt.Errorf(
-			"failed to mark messages as deleted: %w",
-			err,
-		)
-	}
+			if err := c.UIDExpunge(uidSet).Close(); err != nil {
+				return fmt.Errorf(
+					"failed to expunge messages: %w",
+					err,
+				)
+			}
 
-	if err := client.UIDExpunge(uidSet).Close(); err != nil {
-		return fmt.Errorf(
-			"failed to expunge messages: %w",
-			err,
-		)
-	}
-
-	return nil
+			return nil
+		},
+	)
 }
 
 // CreateMailbox creates a new mailbox on the server.
 func (m *Manager) CreateMailbox(
 	account, name string,
 ) error {
-	client, err := m.GetClient(account)
-	if err != nil {
-		return err
-	}
-
-	if err := client.Create(name, nil).Wait(); err != nil {
-		return fmt.Errorf(
-			"failed to create mailbox: %w",
-			err,
-		)
-	}
-
-	return nil
+	return m.withRetry(
+		account,
+		func(c *imapclient.Client) error {
+			if err := c.Create(name, nil).Wait(); err != nil {
+				return fmt.Errorf(
+					"failed to create mailbox: %w",
+					err,
+				)
+			}
+			return nil
+		},
+	)
 }
 
 // DeleteMailbox deletes a mailbox from the server.
 func (m *Manager) DeleteMailbox(
 	account, name string,
 ) error {
-	client, err := m.GetClient(account)
-	if err != nil {
-		return err
-	}
-
-	if err := client.Delete(name).Wait(); err != nil {
-		return fmt.Errorf(
-			"failed to delete mailbox: %w",
-			err,
-		)
-	}
-
-	return nil
+	return m.withRetry(
+		account,
+		func(c *imapclient.Client) error {
+			if err := c.Delete(name).Wait(); err != nil {
+				return fmt.Errorf(
+					"failed to delete mailbox: %w",
+					err,
+				)
+			}
+			return nil
+		},
+	)
 }
 
 // FindTrashMailbox scans the account's mailboxes for one with

@@ -113,14 +113,23 @@ The config file path is passed via the `--config` flag. `config.toml` is gitigno
 
 ### IMAP Connection Manager (`internal/imap/`)
 
-Manages persistent IMAP connections per account with lazy initialization:
+Manages persistent IMAP connections per account with lazy initialization and transparent auto-reconnect:
 
 **Connection & Config:**
 - **`NewManager(cfg)`** - Creates a manager from config
-- **`GetClient(accountName)`** - Returns an IMAP client, connecting on first use
-- **`IsConnected(accountName)`** - Checks if an account has an open connection (no side effects)
+- **`GetClient(accountName)`** - Returns an IMAP client, connecting on first use. Detects dead cached connections (via `imapclient.Client.Closed()` channel) and reconnects automatically.
+- **`IsConnected(accountName)`** - Checks if an account has a live connection (returns false for dead cached connections)
 - **`Config()`** - Returns the manager's config
 - **`Close()`** - Closes all open connections
+
+**Auto-Reconnect:**
+All read and write operations are wrapped in `withRetry`/`withRetryResult` which:
+1. Get or reconnect the client (dead connections are evicted proactively)
+2. Execute the operation
+3. If the operation fails and the connection is dead, evict the dead client, reconnect once, and retry
+4. If the retry also fails, return the error to the caller
+
+Reconnections are logged to stderr via `log.Printf`. The identity check `m.conns[account] == client` prevents race conditions when multiple goroutines detect the same dead connection.
 
 **Read Operations (read-only mailbox selection):**
 - **`ListMailboxes(accountName)`** - Returns all mailboxes for an account (connects lazily if needed, issues IMAP LIST command)
@@ -140,7 +149,7 @@ Manages persistent IMAP connections per account with lazy initialization:
 - **`CreateMailbox(account, name)`** - Creates a new mailbox on the server (IMAP CREATE)
 - **`DeleteMailbox(account, name)`** - Deletes a mailbox from the server (IMAP DELETE)
 
-Connections are thread-safe (protected by `sync.Mutex`). TLS vs insecure connections are selected based on the account's `tls` config field.
+Connections are thread-safe (protected by `sync.Mutex`). TLS vs insecure connections are selected based on the account's `tls` config field. Dead connections are detected and replaced transparently — callers never need to handle reconnection.
 
 ### Tool Interface (`internal/tools/tool.go`)
 
@@ -407,6 +416,8 @@ Tools define narrow interfaces for the Manager methods they need (e.g., `mailbox
 ### IMAP Connection Lifecycle
 - Connections are established lazily on first `GetClient()` call
 - Connections are pooled and reused across tool calls
+- Dead connections are detected (via `Closed()` channel) and replaced transparently
+- All operations retry once on connection death before returning an error
 - `Manager.Close()` is called via `defer` in `main.go`
 
 ## Dependencies
