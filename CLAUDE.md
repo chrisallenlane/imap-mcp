@@ -44,7 +44,11 @@ imap-mcp/
 │       ├── get_message.go        # get_message tool
 │       ├── get_message_test.go
 │       ├── search_messages.go    # search_messages tool
-│       └── search_messages_test.go
+│       ├── search_messages_test.go
+│       ├── mark_messages.go      # mark_messages tool
+│       ├── mark_messages_test.go
+│       ├── move_messages.go      # move_messages tool
+│       └── move_messages_test.go
 ├── config.example.toml          # Example configuration file
 ├── Makefile                     # Build automation
 ├── CLAUDE.md                    # This file
@@ -329,6 +333,8 @@ Every new tool should have:
 - **`list_messages`** - Lists message envelopes in a mailbox with pagination (100 messages per page, newest first). Displays UID, date, sender, subject, and flag indicators (unread, flagged, replied, draft, deleted). Takes required `account` and `mailbox` parameters, optional `page` parameter (default: 1).
 - **`get_message`** - Retrieves a full email message by UID, including headers (From, To, CC, Date, Subject), flags, plain text body, and attachment metadata (filename, size, media type). HTML-only bodies are noted but not yet rendered. Body text is truncated at 1 MB. Takes required `account`, `mailbox`, and `uid` parameters.
 - **`search_messages`** - Searches messages in a mailbox using IMAP SEARCH criteria. Supports filtering by `from`, `to`, `subject`, `body` text, date range (`since`/`before` in YYYY-MM-DD format), and flags (`flagged`, `seen`). At least one search criterion is required beyond account and mailbox. Results are capped at 100 (newest first), with a note when more matches exist. Takes required `account` and `mailbox` parameters, plus optional search criteria.
+- **`mark_messages`** - Sets or clears flags on messages. Supports `read` (boolean, maps to `\Seen`) and `flagged` (boolean, maps to `\Flagged`). At least one flag parameter is required. Uses pointer booleans to distinguish "not provided" from "false". Batches add/remove into minimal `StoreFlags` calls. Takes required `account`, `mailbox`, and `uids` parameters, plus optional `read` and `flagged` booleans.
+- **`move_messages`** - Moves messages from one mailbox to another via IMAP MOVE (RFC 6851). Destination must differ from source. After a move, source UIDs are invalidated (expected IMAP behavior). Takes required `account`, `mailbox`, `uids`, and `destination` parameters.
 
 ## Configuration
 
