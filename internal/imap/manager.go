@@ -128,15 +128,8 @@ func (m *Manager) FetchMessageByUID(
 		return nil, err
 	}
 
-	_, err = client.Select(
-		mailbox,
-		&imap.SelectOptions{ReadOnly: true},
-	).Wait()
-	if err != nil {
-		return nil, fmt.Errorf(
-			"failed to examine mailbox: %w",
-			err,
-		)
+	if err := selectReadOnly(client, mailbox); err != nil {
+		return nil, err
 	}
 
 	uidSet := imap.UIDSetNum(uid)
@@ -154,15 +147,8 @@ func (m *Manager) SearchMessages(
 		return nil, err
 	}
 
-	_, err = client.Select(
-		mailbox,
-		&imap.SelectOptions{ReadOnly: true},
-	).Wait()
-	if err != nil {
-		return nil, fmt.Errorf(
-			"failed to examine mailbox: %w",
-			err,
-		)
+	if err := selectReadOnly(client, mailbox); err != nil {
+		return nil, err
 	}
 
 	searchData, err := client.UIDSearch(criteria, nil).Wait()
@@ -185,19 +171,30 @@ func (m *Manager) FetchMessagesByUID(
 		return nil, err
 	}
 
-	_, err = client.Select(
-		mailbox,
-		&imap.SelectOptions{ReadOnly: true},
-	).Wait()
-	if err != nil {
-		return nil, fmt.Errorf(
-			"failed to examine mailbox: %w",
-			err,
-		)
+	if err := selectReadOnly(client, mailbox); err != nil {
+		return nil, err
 	}
 
 	uidSet := imap.UIDSetNum(uids...)
 	return client.Fetch(uidSet, options).Collect()
+}
+
+// selectReadOnly selects a mailbox in read-only mode.
+func selectReadOnly(
+	client *imapclient.Client,
+	mailbox string,
+) error {
+	_, err := client.Select(
+		mailbox,
+		&imap.SelectOptions{ReadOnly: true},
+	).Wait()
+	if err != nil {
+		return fmt.Errorf(
+			"failed to examine mailbox: %w",
+			err,
+		)
+	}
+	return nil
 }
 
 // Close closes all open IMAP connections.

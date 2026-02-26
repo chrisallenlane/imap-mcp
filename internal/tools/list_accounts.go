@@ -7,20 +7,27 @@ import (
 	"sort"
 	"strings"
 
-	imapmanager "github.com/chrisallenlane/imap-mcp/internal/imap"
+	"github.com/chrisallenlane/imap-mcp/internal/config"
 )
+
+// accountLister is a narrow interface for listing accounts.
+// *imapmanager.Manager satisfies this implicitly.
+type accountLister interface {
+	Config() *config.Config
+	IsConnected(accountName string) bool
+}
 
 // ListAccounts is an MCP tool that lists all configured IMAP
 // accounts with their connection status.
 type ListAccounts struct {
-	imap *imapmanager.Manager
+	lister accountLister
 }
 
 // NewListAccounts creates a new ListAccounts tool.
 func NewListAccounts(
-	mgr *imapmanager.Manager,
+	lister accountLister,
 ) *ListAccounts {
-	return &ListAccounts{imap: mgr}
+	return &ListAccounts{lister: lister}
 }
 
 // Description returns a description of what the tool does.
@@ -42,7 +49,7 @@ func (t *ListAccounts) Execute(
 	_ context.Context,
 	_ json.RawMessage,
 ) (string, error) {
-	cfg := t.imap.Config()
+	cfg := t.lister.Config()
 
 	if len(cfg.Accounts) == 0 {
 		return "No accounts configured.", nil
@@ -67,7 +74,7 @@ func (t *ListAccounts) Execute(
 		}
 
 		status := "not connected"
-		if t.imap.IsConnected(name) {
+		if t.lister.IsConnected(name) {
 			status = "connected"
 		}
 

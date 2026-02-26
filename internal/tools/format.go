@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -45,6 +46,48 @@ func formatFlags(flags []imap.Flag) string {
 	}
 
 	return strings.Join(labels, ", ")
+}
+
+// formatMessage formats a single message envelope line.
+func formatMessage(
+	b *strings.Builder,
+	msg *imapclient.FetchMessageBuffer,
+) {
+	if msg.Envelope == nil {
+		fmt.Fprintf(
+			b,
+			"  UID %-5d  (no envelope data)\n",
+			msg.UID,
+		)
+		return
+	}
+
+	env := msg.Envelope
+
+	from := "(unknown)"
+	if len(env.From) > 0 {
+		addr := env.From[0].Addr()
+		if addr != "" {
+			from = addr
+		}
+	}
+
+	date := env.Date.Format("2006-01-02")
+
+	suffix := ""
+	if flags := formatFlags(msg.Flags); flags != "" {
+		suffix = fmt.Sprintf("  [%s]", flags)
+	}
+
+	fmt.Fprintf(
+		b,
+		"  UID %-5d  %s  %-25s  %s%s\n",
+		msg.UID,
+		date,
+		from,
+		env.Subject,
+		suffix,
+	)
 }
 
 // envelopeDate returns the envelope date from a message,

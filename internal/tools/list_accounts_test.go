@@ -7,12 +7,27 @@ import (
 	"testing"
 
 	"github.com/chrisallenlane/imap-mcp/internal/config"
-	imapmanager "github.com/chrisallenlane/imap-mcp/internal/imap"
 )
 
+type mockAccountLister struct {
+	config    *config.Config
+	connected map[string]bool
+}
+
+func (m *mockAccountLister) Config() *config.Config {
+	return m.config
+}
+
+func (m *mockAccountLister) IsConnected(
+	accountName string,
+) bool {
+	return m.connected[accountName]
+}
+
 func TestListAccounts_Description(t *testing.T) {
-	mgr := imapmanager.NewManager(&config.Config{})
-	tool := NewListAccounts(mgr)
+	tool := NewListAccounts(&mockAccountLister{
+		config: &config.Config{},
+	})
 
 	desc := tool.Description()
 	if desc == "" {
@@ -21,8 +36,9 @@ func TestListAccounts_Description(t *testing.T) {
 }
 
 func TestListAccounts_InputSchema(t *testing.T) {
-	mgr := imapmanager.NewManager(&config.Config{})
-	tool := NewListAccounts(mgr)
+	tool := NewListAccounts(&mockAccountLister{
+		config: &config.Config{},
+	})
 
 	schema := tool.InputSchema()
 	if schema["type"] != "object" {
@@ -45,11 +61,11 @@ func TestListAccounts_InputSchema(t *testing.T) {
 }
 
 func TestListAccounts_NoAccounts(t *testing.T) {
-	cfg := &config.Config{
-		Accounts: map[string]config.Account{},
-	}
-	mgr := imapmanager.NewManager(cfg)
-	tool := NewListAccounts(mgr)
+	tool := NewListAccounts(&mockAccountLister{
+		config: &config.Config{
+			Accounts: map[string]config.Account{},
+		},
+	})
 
 	result, err := tool.Execute(
 		context.Background(),
@@ -69,19 +85,19 @@ func TestListAccounts_NoAccounts(t *testing.T) {
 }
 
 func TestListAccounts_SingleAccount(t *testing.T) {
-	cfg := &config.Config{
-		Accounts: map[string]config.Account{
-			"gmail": {
-				Host:     "imap.gmail.com",
-				Port:     993,
-				Username: "user@gmail.com",
-				Password: "pass",
-				TLS:      true,
+	tool := NewListAccounts(&mockAccountLister{
+		config: &config.Config{
+			Accounts: map[string]config.Account{
+				"gmail": {
+					Host:     "imap.gmail.com",
+					Port:     993,
+					Username: "user@gmail.com",
+					Password: "pass",
+					TLS:      true,
+				},
 			},
 		},
-	}
-	mgr := imapmanager.NewManager(cfg)
-	tool := NewListAccounts(mgr)
+	})
 
 	result, err := tool.Execute(
 		context.Background(),
@@ -99,26 +115,26 @@ func TestListAccounts_SingleAccount(t *testing.T) {
 }
 
 func TestListAccounts_MultipleAccounts_Sorted(t *testing.T) {
-	cfg := &config.Config{
-		Accounts: map[string]config.Account{
-			"protonmail": {
-				Host:     "127.0.0.1",
-				Port:     1143,
-				Username: "user@proton.me",
-				Password: "pass",
-				TLS:      false,
-			},
-			"gmail": {
-				Host:     "imap.gmail.com",
-				Port:     993,
-				Username: "user@gmail.com",
-				Password: "pass",
-				TLS:      true,
+	tool := NewListAccounts(&mockAccountLister{
+		config: &config.Config{
+			Accounts: map[string]config.Account{
+				"protonmail": {
+					Host:     "127.0.0.1",
+					Port:     1143,
+					Username: "user@proton.me",
+					Password: "pass",
+					TLS:      false,
+				},
+				"gmail": {
+					Host:     "imap.gmail.com",
+					Port:     993,
+					Username: "user@gmail.com",
+					Password: "pass",
+					TLS:      true,
+				},
 			},
 		},
-	}
-	mgr := imapmanager.NewManager(cfg)
-	tool := NewListAccounts(mgr)
+	})
 
 	result, err := tool.Execute(
 		context.Background(),
@@ -143,19 +159,19 @@ func TestListAccounts_MultipleAccounts_Sorted(t *testing.T) {
 }
 
 func TestListAccounts_NoTLS(t *testing.T) {
-	cfg := &config.Config{
-		Accounts: map[string]config.Account{
-			"local": {
-				Host:     "127.0.0.1",
-				Port:     143,
-				Username: "user",
-				Password: "pass",
-				TLS:      false,
+	tool := NewListAccounts(&mockAccountLister{
+		config: &config.Config{
+			Accounts: map[string]config.Account{
+				"local": {
+					Host:     "127.0.0.1",
+					Port:     143,
+					Username: "user",
+					Password: "pass",
+					TLS:      false,
+				},
 			},
 		},
-	}
-	mgr := imapmanager.NewManager(cfg)
-	tool := NewListAccounts(mgr)
+	})
 
 	result, err := tool.Execute(
 		context.Background(),
@@ -176,19 +192,19 @@ func TestListAccounts_NoTLS(t *testing.T) {
 }
 
 func TestListAccounts_NilArgs(t *testing.T) {
-	cfg := &config.Config{
-		Accounts: map[string]config.Account{
-			"test": {
-				Host:     "localhost",
-				Port:     993,
-				Username: "user",
-				Password: "pass",
-				TLS:      true,
+	tool := NewListAccounts(&mockAccountLister{
+		config: &config.Config{
+			Accounts: map[string]config.Account{
+				"test": {
+					Host:     "localhost",
+					Port:     993,
+					Username: "user",
+					Password: "pass",
+					TLS:      true,
+				},
 			},
 		},
-	}
-	mgr := imapmanager.NewManager(cfg)
-	tool := NewListAccounts(mgr)
+	})
 
 	// Execute with nil args should still work
 	result, err := tool.Execute(context.Background(), nil)
@@ -197,4 +213,31 @@ func TestListAccounts_NilArgs(t *testing.T) {
 	}
 
 	assertContains(t, result, "Configured accounts:")
+}
+
+func TestListAccounts_Connected(t *testing.T) {
+	tool := NewListAccounts(&mockAccountLister{
+		config: &config.Config{
+			Accounts: map[string]config.Account{
+				"gmail": {
+					Host:     "imap.gmail.com",
+					Port:     993,
+					Username: "user@gmail.com",
+					Password: "pass",
+					TLS:      true,
+				},
+			},
+		},
+		connected: map[string]bool{"gmail": true},
+	})
+
+	result, err := tool.Execute(
+		context.Background(),
+		json.RawMessage(`{}`),
+	)
+	if err != nil {
+		t.Fatalf("Execute() unexpected error: %v", err)
+	}
+
+	assertContains(t, result, "Status: connected")
 }
