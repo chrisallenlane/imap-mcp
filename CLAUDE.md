@@ -103,17 +103,30 @@ The config file path is passed via the `--config` flag. `config.toml` is gitigno
 
 Manages persistent IMAP connections per account with lazy initialization:
 
+**Connection & Config:**
 - **`NewManager(cfg)`** - Creates a manager from config
 - **`GetClient(accountName)`** - Returns an IMAP client, connecting on first use
+- **`IsConnected(accountName)`** - Checks if an account has an open connection (no side effects)
+- **`Config()`** - Returns the manager's config
+- **`Close()`** - Closes all open connections
+
+**Read Operations (read-only mailbox selection):**
 - **`ListMailboxes(accountName)`** - Returns all mailboxes for an account (connects lazily if needed, issues IMAP LIST command)
 - **`ExamineMailbox(account, mailbox)`** - Selects a mailbox in read-only mode (IMAP EXAMINE) and returns metadata including message count
 - **`FetchMessages(account, seqSet, options)`** - Fetches message data (envelopes, flags, UIDs, etc.) for a given sequence set
 - **`FetchMessageByUID(account, mailbox, uid, options)`** - Fetches message data for a single message by UID (selects mailbox in read-only mode, then fetches via UID set)
 - **`SearchMessages(account, mailbox, criteria)`** - Selects a mailbox in read-only mode and runs an IMAP UID SEARCH with the given criteria, returning matching UIDs
 - **`FetchMessagesByUID(account, mailbox, uids, options)`** - Fetches message data for multiple UIDs in a mailbox (selects mailbox in read-only mode, then fetches via UID set)
-- **`IsConnected(accountName)`** - Checks if an account has an open connection (no side effects)
-- **`Config()`** - Returns the manager's config
-- **`Close()`** - Closes all open connections
+- **`FindTrashMailbox(account)`** - Scans mailboxes for the `\Trash` special-use attribute and returns its name
+
+**Write Operations (read-write mailbox selection):**
+- **`SelectMailbox(account, mailbox)`** - Opens a mailbox in read-write mode (IMAP SELECT) and returns metadata
+- **`StoreFlags(account, mailbox, uids, op, flags)`** - Sets or clears flags on messages identified by UIDs (selects mailbox read-write, then issues STORE with silent mode)
+- **`MoveMessages(account, mailbox, uids, destMailbox)`** - Moves messages identified by UIDs from one mailbox to another (IMAP MOVE)
+- **`CopyMessages(account, mailbox, uids, destMailbox)`** - Copies messages identified by UIDs from one mailbox to another (IMAP COPY)
+- **`ExpungeMessages(account, mailbox, uids)`** - Permanently removes messages identified by UIDs from a mailbox (IMAP UID EXPUNGE)
+- **`CreateMailbox(account, name)`** - Creates a new mailbox on the server (IMAP CREATE)
+- **`DeleteMailbox(account, name)`** - Deletes a mailbox from the server (IMAP DELETE)
 
 Connections are thread-safe (protected by `sync.Mutex`). TLS vs insecure connections are selected based on the account's `tls` config field.
 

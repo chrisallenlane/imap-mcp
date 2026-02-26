@@ -197,6 +197,231 @@ func selectReadOnly(
 	return nil
 }
 
+// selectReadWrite selects a mailbox in read-write mode.
+func selectReadWrite(
+	client *imapclient.Client,
+	mailbox string,
+) error {
+	_, err := client.Select(
+		mailbox,
+		&imap.SelectOptions{ReadOnly: false},
+	).Wait()
+	if err != nil {
+		return fmt.Errorf(
+			"failed to select mailbox: %w",
+			err,
+		)
+	}
+	return nil
+}
+
+// SelectMailbox opens a mailbox in read-write mode (IMAP SELECT)
+// and returns metadata.
+func (m *Manager) SelectMailbox(
+	account, mailbox string,
+) (*imap.SelectData, error) {
+	client, err := m.GetClient(account)
+	if err != nil {
+		return nil, err
+	}
+	return client.Select(
+		mailbox,
+		&imap.SelectOptions{ReadOnly: false},
+	).Wait()
+}
+
+// StoreFlags sets or clears flags on messages identified by UIDs.
+func (m *Manager) StoreFlags(
+	account, mailbox string,
+	uids []imap.UID,
+	op imap.StoreFlagsOp,
+	flags []imap.Flag,
+) error {
+	if len(uids) == 0 {
+		return fmt.Errorf("no UIDs provided")
+	}
+
+	client, err := m.GetClient(account)
+	if err != nil {
+		return err
+	}
+
+	if err := selectReadWrite(client, mailbox); err != nil {
+		return err
+	}
+
+	uidSet := imap.UIDSetNum(uids...)
+	storeFlags := &imap.StoreFlags{
+		Op:     op,
+		Silent: true,
+		Flags:  flags,
+	}
+
+	cmd := client.Store(uidSet, storeFlags, nil)
+	if err := cmd.Close(); err != nil {
+		return fmt.Errorf("failed to store flags: %w", err)
+	}
+
+	return nil
+}
+
+// MoveMessages moves messages identified by UIDs from one mailbox
+// to another.
+func (m *Manager) MoveMessages(
+	account, mailbox string,
+	uids []imap.UID,
+	destMailbox string,
+) error {
+	if len(uids) == 0 {
+		return fmt.Errorf("no UIDs provided")
+	}
+
+	client, err := m.GetClient(account)
+	if err != nil {
+		return err
+	}
+
+	if err := selectReadWrite(client, mailbox); err != nil {
+		return err
+	}
+
+	uidSet := imap.UIDSetNum(uids...)
+	if _, err := client.Move(uidSet, destMailbox).Wait(); err != nil {
+		return fmt.Errorf(
+			"failed to move messages: %w",
+			err,
+		)
+	}
+
+	return nil
+}
+
+// CopyMessages copies messages identified by UIDs from one mailbox
+// to another.
+func (m *Manager) CopyMessages(
+	account, mailbox string,
+	uids []imap.UID,
+	destMailbox string,
+) error {
+	if len(uids) == 0 {
+		return fmt.Errorf("no UIDs provided")
+	}
+
+	client, err := m.GetClient(account)
+	if err != nil {
+		return err
+	}
+
+	if err := selectReadWrite(client, mailbox); err != nil {
+		return err
+	}
+
+	uidSet := imap.UIDSetNum(uids...)
+	if _, err := client.Copy(uidSet, destMailbox).Wait(); err != nil {
+		return fmt.Errorf(
+			"failed to copy messages: %w",
+			err,
+		)
+	}
+
+	return nil
+}
+
+// ExpungeMessages permanently removes messages identified by UIDs
+// from a mailbox.
+func (m *Manager) ExpungeMessages(
+	account, mailbox string,
+	uids []imap.UID,
+) error {
+	if len(uids) == 0 {
+		return fmt.Errorf("no UIDs provided")
+	}
+
+	client, err := m.GetClient(account)
+	if err != nil {
+		return err
+	}
+
+	if err := selectReadWrite(client, mailbox); err != nil {
+		return err
+	}
+
+	uidSet := imap.UIDSetNum(uids...)
+	if err := client.UIDExpunge(uidSet).Close(); err != nil {
+		return fmt.Errorf(
+			"failed to expunge messages: %w",
+			err,
+		)
+	}
+
+	return nil
+}
+
+// CreateMailbox creates a new mailbox on the server.
+func (m *Manager) CreateMailbox(
+	account, name string,
+) error {
+	client, err := m.GetClient(account)
+	if err != nil {
+		return err
+	}
+
+	if err := client.Create(name, nil).Wait(); err != nil {
+		return fmt.Errorf(
+			"failed to create mailbox: %w",
+			err,
+		)
+	}
+
+	return nil
+}
+
+// DeleteMailbox deletes a mailbox from the server.
+func (m *Manager) DeleteMailbox(
+	account, name string,
+) error {
+	client, err := m.GetClient(account)
+	if err != nil {
+		return err
+	}
+
+	if err := client.Delete(name).Wait(); err != nil {
+		return fmt.Errorf(
+			"failed to delete mailbox: %w",
+			err,
+		)
+	}
+
+	return nil
+}
+
+// FindTrashMailbox scans the account's mailboxes for one with
+// the \Trash special-use attribute and returns its name.
+func (m *Manager) FindTrashMailbox(
+	account string,
+) (string, error) {
+	mailboxes, err := m.ListMailboxes(account)
+	if err != nil {
+		return "", fmt.Errorf(
+			"failed to list mailboxes: %w",
+			err,
+		)
+	}
+
+	for _, mb := range mailboxes {
+		for _, attr := range mb.Attrs {
+			if attr == imap.MailboxAttrTrash {
+				return mb.Mailbox, nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf(
+		"no trash mailbox found for account %q",
+		account,
+	)
+}
+
 // Close closes all open IMAP connections.
 func (m *Manager) Close() error {
 	m.mu.Lock()
