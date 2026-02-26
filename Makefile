@@ -20,6 +20,22 @@ build: | clean $(dist_dir) fmt lint vet
 install: build
 	$(GO) install $(BUILD_FLAGS) $(cmd_dir)
 
+## setup: register imap-mcp with Claude Code
+.PHONY: setup
+setup: build
+	@if [ ! -f config.toml ]; then \
+		echo "Error: config.toml not found."; \
+		echo "  cp config.example.toml config.toml"; \
+		echo "  Edit config.toml with your IMAP credentials."; \
+		exit 1; \
+	fi
+	claude mcp add imap-mcp $(CURDIR)/dist/imap-mcp \
+		-s user \
+		--args -- --config $(CURDIR)/config.toml
+	@echo ""
+	@echo "Done. imap-mcp is now available in Claude Code."
+	@echo "Verify with: claude mcp list"
+
 ## clean: remove compiled executables
 .PHONY: clean
 clean:

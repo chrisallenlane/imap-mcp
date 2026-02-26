@@ -218,6 +218,15 @@ make check
 make install
 ```
 
+### Claude Code Setup
+
+```bash
+# Register imap-mcp with Claude Code (requires config.toml)
+make setup
+```
+
+This builds the binary, checks for `config.toml`, and runs `claude mcp add` with absolute paths. It gives a clear error with guidance if `config.toml` is missing.
+
 ### Cleaning
 
 ```bash
@@ -355,6 +364,8 @@ The server requires a TOML config file passed via `--config`:
 ```bash
 ./dist/imap-mcp --config /path/to/config.toml
 ```
+
+Use `--version` to print the version and exit (works without a config file).
 
 See `config.example.toml` for the format.
 

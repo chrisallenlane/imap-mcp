@@ -19,6 +19,12 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server that p
 | `list_messages` | Lists message envelopes with pagination (100 per page, newest first) |
 | `get_message` | Retrieves a full message by UID (headers, body, attachments) |
 | `search_messages` | Searches messages by from, to, subject, body, date range, and flags |
+| `mark_messages` | Sets or clears read/flagged status on messages |
+| `move_messages` | Moves messages between mailboxes |
+| `copy_messages` | Copies messages between mailboxes |
+| `delete_messages` | Deletes messages (move to Trash or permanent expunge) |
+| `create_mailbox` | Creates a new mailbox (folder) |
+| `delete_mailbox` | Deletes a mailbox (with special-use protection) |
 
 ## Project Structure
 
@@ -36,30 +42,38 @@ imap-mcp/
 └── README.md            # This file
 ```
 
-## Getting Started
+## Quick Start
+
+1. **Clone and build:**
+   ```bash
+   git clone https://github.com/chrisallenlane/imap-mcp.git
+   cd imap-mcp
+   make build
+   ```
+
+2. **Configure:**
+   ```bash
+   cp config.example.toml config.toml
+   # Edit config.toml with your IMAP credentials
+   ```
+
+3. **Register with Claude Code:**
+   ```bash
+   make setup
+   ```
+
+That's it. The MCP tools are now available in Claude Code.
+
+See [SETUP.md](SETUP.md) for Claude Desktop integration and manual setup options.
 
 ### Prerequisites
 
 - Go 1.24 or later
 - Make (optional, but recommended)
 
-### Installation
-
-```bash
-git clone https://github.com/chrisallenlane/imap-mcp.git
-cd imap-mcp
-make build
-```
-
 ### Configuration
 
-Copy the example config and fill in your IMAP account details:
-
-```bash
-cp config.example.toml config.toml
-```
-
-Edit `config.toml`:
+Each `[accounts.<name>]` section in `config.toml` defines an IMAP account:
 
 ```toml
 [accounts.gmail]
@@ -77,9 +91,7 @@ password = "bridge-password"
 tls      = false
 ```
 
-Each `[accounts.<name>]` section defines an IMAP account. All fields (host, port, username, password) are required. The `tls` field controls whether to use TLS or plaintext.
-
-`config.toml` is gitignored because it contains credentials.
+All fields (host, port, username, password) are required. The `tls` field controls whether to use TLS or plaintext. `config.toml` is gitignored because it contains credentials.
 
 ### Running
 
@@ -89,7 +101,7 @@ The MCP server communicates via stdin/stdout:
 ./dist/imap-mcp --config /path/to/config.toml
 ```
 
-The `--config` flag is required. See SETUP.md for integration with Claude Desktop and Claude Code.
+The `--config` flag is required. Use `--version` to print the version and exit.
 
 ## Development
 

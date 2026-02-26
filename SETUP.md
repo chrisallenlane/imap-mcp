@@ -2,23 +2,10 @@
 
 ## Quick Start
 
-1. **Build the server**:
-   ```bash
-   cd ~/path/to/imap-mcp
-   make build
-   # Binary: dist/imap-mcp
-   ```
-
-2. **Create a config file**:
-   ```bash
-   cp config.example.toml config.toml
-   # Edit config.toml with your IMAP account details
-   ```
-
-3. **Test the server** (optional):
-   ```bash
-   echo '{"jsonrpc":"2.0","id":1,"method":"initialize"}' | ./dist/imap-mcp --config config.toml
-   ```
+1. Build: `make build`
+2. Configure: `cp config.example.toml config.toml` and edit
+3. Register: `make setup`
+4. Verify: `claude mcp list`
 
 ## Configuration File
 
@@ -41,7 +28,15 @@ All fields (host, port, username, password) are required per account. Set `tls =
 
 ### Claude Code (CLI)
 
-Use the `claude mcp add` command to configure the server:
+The easiest way to register imap-mcp with Claude Code is via the Makefile:
+
+```bash
+make setup
+```
+
+This builds the binary, checks for `config.toml`, and runs `claude mcp add` with the correct paths and flags.
+
+**Manual alternative** (if you need custom paths or scope):
 
 ```bash
 claude mcp add imap-mcp /path/to/dist/imap-mcp \
@@ -102,14 +97,8 @@ Add to your Claude Desktop configuration file:
 After making changes:
 
 ```bash
-# Rebuild
-make build
-
-# For Claude Code: remove and re-add
-claude mcp remove imap-mcp
-claude mcp add imap-mcp /path/to/dist/imap-mcp \
-  -s user \
-  --args -- --config /path/to/config.toml
+# Rebuild and re-register
+make setup
 
 # For Claude Desktop: just restart the app
 ```
@@ -127,9 +116,7 @@ claude mcp get imap-mcp
 
 # Try removing and re-adding
 claude mcp remove imap-mcp
-claude mcp add imap-mcp /path/to/dist/imap-mcp \
-  -s user \
-  --args -- --config /path/to/config.toml
+make setup
 ```
 
 ### Tools not working
@@ -142,7 +129,7 @@ claude mcp add imap-mcp /path/to/dist/imap-mcp \
 
 ### Binary not found
 
-Make sure you're using the absolute path to the binary:
+Make sure you're using the absolute path to the binary. `make setup` handles this automatically. If registering manually:
 
 ```bash
 # Good

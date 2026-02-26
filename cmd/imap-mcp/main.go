@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 
@@ -18,7 +19,20 @@ func main() {
 		"",
 		"path to TOML config file",
 	)
+	versionFlag := flag.Bool(
+		"version",
+		false,
+		"print version and exit",
+	)
 	flag.Parse()
+
+	if *versionFlag {
+		fmt.Printf(
+			"imap-mcp v%s\n",
+			server.ServerVersion,
+		)
+		os.Exit(0)
+	}
 
 	if *configPath == "" {
 		log.Fatal("--config flag is required")
