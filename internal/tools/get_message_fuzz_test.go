@@ -66,7 +66,7 @@ func FuzzParseBody(f *testing.F) {
 	))
 
 	f.Fuzz(func(t *testing.T, data []byte) {
-		body, attachments, err := parseBody(data)
+		parsed, err := parseBody(data)
 		// If parseBody returned an error, the other
 		// return values are unspecified; nothing more
 		// to check.
@@ -77,19 +77,19 @@ func FuzzParseBody(f *testing.F) {
 		// Body must not exceed maxBodySize + truncation
 		// suffix length.
 		maxLen := maxBodySize + len(truncationSuffix)
-		if len(body) > maxLen {
+		if len(parsed.text) > maxLen {
 			t.Errorf(
 				"body length %d exceeds max %d",
-				len(body),
+				len(parsed.text),
 				maxLen,
 			)
 		}
 
 		// If body was truncated, the suffix must be
 		// present.
-		if len(body) > maxBodySize {
+		if len(parsed.text) > maxBodySize {
 			if !strings.HasSuffix(
-				body, truncationSuffix,
+				parsed.text, truncationSuffix,
 			) {
 				t.Errorf(
 					"oversized body missing " +
@@ -99,7 +99,7 @@ func FuzzParseBody(f *testing.F) {
 		}
 
 		// Attachment metadata invariants.
-		for i, att := range attachments {
+		for i, att := range parsed.attachments {
 			if att.filename == "" {
 				t.Errorf(
 					"attachment[%d] has empty "+

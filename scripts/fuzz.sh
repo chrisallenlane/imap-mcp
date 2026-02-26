@@ -6,6 +6,7 @@ FUZZTIME="${FUZZTIME:-30s}"
 
 # Each entry is "package:FuzzFunctionName".
 targets=(
+  "./internal/tools/:FuzzHTMLToText"
   "./internal/tools/:FuzzParseBody"
   "./internal/tools/:FuzzFormatMessage"
   "./internal/tools/:FuzzFormatFullMessage"

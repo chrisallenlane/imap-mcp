@@ -147,6 +147,13 @@ type attachment struct {
 	mediaType string
 }
 
+// parsedBody holds the result of parsing a message body.
+type parsedBody struct {
+	text        string
+	attachments []attachment
+	fromHTML    bool
+}
+
 // formatFullMessage formats a complete message for display.
 func formatFullMessage(
 	account, mailbox string,
@@ -176,7 +183,7 @@ func formatFullMessage(
 		return b.String(), nil
 	}
 
-	body, attachments, err := parseBody(bodyBytes)
+	parsed, err := parseBody(bodyBytes)
 	if err != nil {
 		return "", fmt.Errorf(
 			"failed to parse message body: %w",
@@ -184,20 +191,25 @@ func formatFullMessage(
 		)
 	}
 
-	b.WriteString("\n  Body:\n")
-	if body == "" {
+	if parsed.fromHTML {
 		b.WriteString(
-			"  This message has no plain text body. " +
-				"HTML-only content is not yet " +
-				"supported.\n",
+			"\n  Body (converted from HTML):\n",
 		)
 	} else {
-		writeIndentedBody(&b, body)
+		b.WriteString("\n  Body:\n")
 	}
 
-	if len(attachments) > 0 {
+	if parsed.text == "" {
+		b.WriteString(
+			"  (no readable body content)\n",
+		)
+	} else {
+		writeIndentedBody(&b, parsed.text)
+	}
+
+	if len(parsed.attachments) > 0 {
 		b.WriteString("\n  Attachments:\n")
-		for i, att := range attachments {
+		for i, att := range parsed.attachments {
 			fmt.Fprintf(
 				&b,
 				"  %d. %s (%s, %s)\n",
@@ -290,21 +302,21 @@ func formatAddress(addr imap.Address) string {
 }
 
 // parseBody parses raw RFC 2822 message bytes, extracting the
-// plain text body and attachment metadata.
-func parseBody(
-	raw []byte,
-) (string, []attachment, error) {
+// plain text body (or HTML fallback) and attachment metadata.
+func parseBody(raw []byte) (parsedBody, error) {
 	entity, err := message.Read(bytes.NewReader(raw))
 	if err != nil && !message.IsUnknownCharset(err) {
-		return "", nil, fmt.Errorf(
+		return parsedBody{}, fmt.Errorf(
 			"failed to read message: %w",
 			err,
 		)
 	}
 
-	var body string
+	var plainText string
+	var htmlText string
 	var attachments []attachment
-	var bodyFound bool
+	var plainFound bool
+	var htmlFound bool
 
 	walkErr := entity.Walk(
 		func(
@@ -319,25 +331,34 @@ func parseBody(
 			mediaType, ctParams, _ := part.Header.ContentType()
 			disp, dispParams, _ := part.Header.ContentDisposition()
 
+			// Collect the first text/plain part.
 			if mediaType == "text/plain" &&
 				disp != "attachment" &&
-				!bodyFound {
-				lr := &io.LimitedReader{
-					R: part.Body,
-					N: maxBodySize + 1,
-				}
-				data, readErr := io.ReadAll(lr)
+				!plainFound {
+				data, readErr := readBodyPart(
+					part.Body,
+				)
 				if readErr != nil {
 					return nil
 				}
-				if len(data) > maxBodySize {
-					body = string(
-						data[:maxBodySize],
-					) + "\n\n[body truncated at 1 MB]"
-				} else {
-					body = string(data)
+				plainText = data
+				plainFound = true
+				return nil
+			}
+
+			// Collect the first text/html part as
+			// fallback.
+			if mediaType == "text/html" &&
+				disp != "attachment" &&
+				!htmlFound {
+				data, readErr := readBodyPart(
+					part.Body,
+				)
+				if readErr != nil {
+					return nil
 				}
-				bodyFound = true
+				htmlText = data
+				htmlFound = true
 				return nil
 			}
 
@@ -383,13 +404,48 @@ func parseBody(
 		},
 	)
 	if walkErr != nil {
-		return "", nil, fmt.Errorf(
+		return parsedBody{}, fmt.Errorf(
 			"failed to walk message parts: %w",
 			walkErr,
 		)
 	}
 
-	return body, attachments, nil
+	// Prefer text/plain; fall back to text/html.
+	if plainFound {
+		return parsedBody{
+			text:        plainText,
+			attachments: attachments,
+		}, nil
+	}
+	if htmlFound {
+		converted := HTMLToText(htmlText)
+		return parsedBody{
+			text:        converted,
+			attachments: attachments,
+			fromHTML:    true,
+		}, nil
+	}
+
+	return parsedBody{attachments: attachments}, nil
+}
+
+// readBodyPart reads a MIME body part up to maxBodySize,
+// appending a truncation notice if the limit is exceeded.
+func readBodyPart(r io.Reader) (string, error) {
+	lr := &io.LimitedReader{
+		R: r,
+		N: maxBodySize + 1,
+	}
+	data, err := io.ReadAll(lr)
+	if err != nil {
+		return "", err
+	}
+	if len(data) > maxBodySize {
+		return string(
+			data[:maxBodySize],
+		) + "\n\n[body truncated at 1 MB]", nil
+	}
+	return string(data), nil
 }
 
 // writeIndentedBody writes body text with each line indented

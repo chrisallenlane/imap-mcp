@@ -278,10 +278,10 @@ func TestGetMessage_Multipart(t *testing.T) {
 	assertContains(t, result, "application/pdf")
 }
 
-func TestGetMessage_NoPlainText(t *testing.T) {
+func TestGetMessage_HTMLFallback(t *testing.T) {
 	rawBody := makeRawMessage(
 		"text/html",
-		"<html><body>Hello</body></html>",
+		"<html><body><p>Hello</p></body></html>",
 	)
 	mock := &mockMessageGetter{
 		messages: []*imapclient.FetchMessageBuffer{
@@ -309,12 +309,151 @@ func TestGetMessage_NoPlainText(t *testing.T) {
 	assertContains(
 		t,
 		result,
-		"no plain text body",
+		"Body (converted from HTML):",
+	)
+	assertContains(t, result, "Hello")
+}
+
+func TestGetMessage_HTMLFallbackWithLinks(t *testing.T) {
+	rawBody := makeRawMessage(
+		"text/html",
+		`<html><body>`+
+			`<p>Visit <a href="https://example.com">`+
+			`our site</a>.</p>`+
+			`</body></html>`,
+	)
+	mock := &mockMessageGetter{
+		messages: []*imapclient.FetchMessageBuffer{
+			mockMsg(
+				imap.UID(201),
+				[]imap.Flag{imap.FlagSeen},
+				standardEnvelope(),
+				rawBody,
+			),
+		},
+	}
+	tool := NewGetMessage(mock)
+
+	result, err := tool.Execute(
+		context.Background(),
+		json.RawMessage(
+			`{"account":"a",`+
+				`"mailbox":"INBOX","uid":201}`,
+		),
+	)
+	if err != nil {
+		t.Fatalf("Execute() unexpected error: %v", err)
+	}
+
+	assertContains(
+		t,
+		result,
+		"Body (converted from HTML):",
 	)
 	assertContains(
 		t,
 		result,
-		"HTML-only content is not yet supported",
+		"our site (https://example.com)",
+	)
+}
+
+func TestGetMessage_PlainTextPreferredOverHTML(t *testing.T) {
+	// Multipart with both text/plain and text/html.
+	rawBody := []byte(
+		"From: alice@example.com\r\n" +
+			"To: bob@example.com\r\n" +
+			"Subject: Test\r\n" +
+			"Content-Type: multipart/alternative; " +
+			"boundary=\"alt123\"\r\n" +
+			"\r\n" +
+			"--alt123\r\n" +
+			"Content-Type: text/plain\r\n" +
+			"\r\n" +
+			"Plain text version\r\n" +
+			"--alt123\r\n" +
+			"Content-Type: text/html\r\n" +
+			"\r\n" +
+			"<p>HTML version</p>\r\n" +
+			"--alt123--\r\n",
+	)
+	mock := &mockMessageGetter{
+		messages: []*imapclient.FetchMessageBuffer{
+			mockMsg(
+				imap.UID(202),
+				[]imap.Flag{imap.FlagSeen},
+				standardEnvelope(),
+				rawBody,
+			),
+		},
+	}
+	tool := NewGetMessage(mock)
+
+	result, err := tool.Execute(
+		context.Background(),
+		json.RawMessage(
+			`{"account":"a",`+
+				`"mailbox":"INBOX","uid":202}`,
+		),
+	)
+	if err != nil {
+		t.Fatalf("Execute() unexpected error: %v", err)
+	}
+
+	assertContains(t, result, "Plain text version")
+
+	// Should NOT show the HTML conversion label.
+	if strings.Contains(
+		result, "converted from HTML",
+	) {
+		t.Error(
+			"should use plain text, " +
+				"not HTML fallback",
+		)
+	}
+}
+
+func TestGetMessage_NoReadableContent(t *testing.T) {
+	// A message with only an attachment, no text parts.
+	rawBody := []byte(
+		"From: alice@example.com\r\n" +
+			"To: bob@example.com\r\n" +
+			"Subject: Test\r\n" +
+			"Content-Type: multipart/mixed; " +
+			"boundary=\"notext\"\r\n" +
+			"\r\n" +
+			"--notext\r\n" +
+			"Content-Type: application/pdf\r\n" +
+			"Content-Disposition: attachment; " +
+			"filename=\"doc.pdf\"\r\n" +
+			"\r\n" +
+			"PDFdata\r\n" +
+			"--notext--\r\n",
+	)
+	mock := &mockMessageGetter{
+		messages: []*imapclient.FetchMessageBuffer{
+			mockMsg(
+				imap.UID(203),
+				[]imap.Flag{imap.FlagSeen},
+				standardEnvelope(),
+				rawBody,
+			),
+		},
+	}
+	tool := NewGetMessage(mock)
+
+	result, err := tool.Execute(
+		context.Background(),
+		json.RawMessage(
+			`{"account":"a",`+
+				`"mailbox":"INBOX","uid":203}`,
+		),
+	)
+	if err != nil {
+		t.Fatalf("Execute() unexpected error: %v", err)
+	}
+
+	assertContains(
+		t, result, "no readable body content",
 	)
 }
 
@@ -752,20 +891,23 @@ func TestParseBody_Truncation(t *testing.T) {
 	bigBody := strings.Repeat("A", maxBodySize+100)
 	raw := makeRawMessage("text/plain", bigBody)
 
-	body, _, err := parseBody(raw)
+	parsed, err := parseBody(raw)
 	if err != nil {
 		t.Fatalf("parseBody() unexpected error: %v", err)
 	}
 
-	if len(body) <= maxBodySize {
+	if len(parsed.text) <= maxBodySize {
 		t.Errorf(
-			"expected body length > %d (includes suffix), got %d",
+			"expected body length > %d "+
+				"(includes suffix), got %d",
 			maxBodySize,
-			len(body),
+			len(parsed.text),
 		)
 	}
 
-	assertContains(t, body, "[body truncated at 1 MB]")
+	assertContains(
+		t, parsed.text, "[body truncated at 1 MB]",
+	)
 }
 
 func TestFormatAddresses(t *testing.T) {

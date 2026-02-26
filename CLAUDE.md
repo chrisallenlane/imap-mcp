@@ -12,6 +12,7 @@ This file provides guidance to Claude Code when working with this codebase.
 - **Config**: TOML via `github.com/BurntSushi/toml`
 - **IMAP**: `github.com/emersion/go-imap/v2`
 - **MIME Parsing**: `github.com/emersion/go-message`
+- **HTML Parsing**: `golang.org/x/net/html`
 
 ## Project Structure
 
@@ -34,6 +35,7 @@ imap-mcp/
 │   └── tools/                   # MCP tool implementations
 │       ├── tool.go              # Tool interface definition
 │       ├── format.go            # Shared formatting helpers (formatFlags, flagLabels)
+│       ├── html.go              # HTML-to-text conversion (HTMLToText)
 │       ├── helpers_test.go      # Shared test helpers (assertContains)
 │       ├── list_accounts.go     # list_accounts tool
 │       ├── list_accounts_test.go
@@ -357,7 +359,7 @@ Every new tool should have:
 - **`list_accounts`** - Lists all configured IMAP accounts with host, username, TLS status, and connection state. Takes no parameters. Does not initiate connections.
 - **`list_mailboxes`** - Lists all mailboxes for a given IMAP account with special-use annotations (archive, drafts, sent, trash, junk, flagged, all mail, important). INBOX is always listed first, remaining mailboxes sorted alphabetically. Takes required `account` parameter.
 - **`list_messages`** - Lists message envelopes in a mailbox with pagination (100 messages per page, newest first). Displays UID, date, sender, subject, and flag indicators (unread, flagged, replied, draft, deleted). Takes required `account` and `mailbox` parameters, optional `page` parameter (default: 1).
-- **`get_message`** - Retrieves a full email message by UID, including headers (From, To, CC, Date, Subject), flags, plain text body, and attachment metadata (filename, size, media type). HTML-only bodies are noted but not yet rendered. Body text is truncated at 1 MB. Takes required `account`, `mailbox`, and `uid` parameters.
+- **`get_message`** - Retrieves a full email message by UID, including headers (From, To, CC, Date, Subject), flags, body text, and attachment metadata (filename, size, media type). Prefers `text/plain` body parts; falls back to HTML-to-text conversion via `HTMLToText()` (in `html.go`) when only `text/html` is available. HTML conversion strips tags, removes script/style blocks, preserves links as `text (url)`, decodes entities, and collapses blank lines. Output indicates when HTML conversion was used ("Body (converted from HTML):"). Body text is truncated at 1 MB. Takes required `account`, `mailbox`, and `uid` parameters.
 - **`search_messages`** - Searches messages in a mailbox using IMAP SEARCH criteria. Supports filtering by `from`, `to`, `subject`, `body` text, date range (`since`/`before` in YYYY-MM-DD format), and flags (`flagged`, `seen`). At least one search criterion is required beyond account and mailbox. Results are capped at 100 (newest first), with a note when more matches exist. Takes required `account` and `mailbox` parameters, plus optional search criteria.
 - **`mark_messages`** - Sets or clears flags on messages. Supports `read` (boolean, maps to `\Seen`) and `flagged` (boolean, maps to `\Flagged`). At least one flag parameter is required. Uses pointer booleans to distinguish "not provided" from "false". Batches add/remove into minimal `StoreFlags` calls. Takes required `account`, `mailbox`, and `uids` parameters, plus optional `read` and `flagged` booleans.
 - **`move_messages`** - Moves messages from one mailbox to another via IMAP MOVE (RFC 6851). Destination must differ from source. After a move, source UIDs are invalidated (expected IMAP behavior). Takes required `account`, `mailbox`, `uids`, and `destination` parameters.
@@ -425,6 +427,7 @@ Tools define narrow interfaces for the Manager methods they need (e.g., `mailbox
 - `github.com/BurntSushi/toml` - TOML config parsing
 - `github.com/emersion/go-imap/v2` - IMAP client
 - `github.com/emersion/go-message` - RFC 2822/MIME message parsing (used by `get_message` for body extraction and attachment metadata)
+- `golang.org/x/net/html` - HTML tokenizer/parser (used by `HTMLToText` for HTML-to-text conversion of email bodies)
 
 ## Version Information
 
