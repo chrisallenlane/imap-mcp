@@ -48,7 +48,9 @@ imap-mcp/
 │       ├── mark_messages.go      # mark_messages tool
 │       ├── mark_messages_test.go
 │       ├── move_messages.go      # move_messages tool
-│       └── move_messages_test.go
+│       ├── move_messages_test.go
+│       ├── copy_messages.go      # copy_messages tool
+│       └── copy_messages_test.go
 ├── config.example.toml          # Example configuration file
 ├── Makefile                     # Build automation
 ├── CLAUDE.md                    # This file
@@ -335,6 +337,7 @@ Every new tool should have:
 - **`search_messages`** - Searches messages in a mailbox using IMAP SEARCH criteria. Supports filtering by `from`, `to`, `subject`, `body` text, date range (`since`/`before` in YYYY-MM-DD format), and flags (`flagged`, `seen`). At least one search criterion is required beyond account and mailbox. Results are capped at 100 (newest first), with a note when more matches exist. Takes required `account` and `mailbox` parameters, plus optional search criteria.
 - **`mark_messages`** - Sets or clears flags on messages. Supports `read` (boolean, maps to `\Seen`) and `flagged` (boolean, maps to `\Flagged`). At least one flag parameter is required. Uses pointer booleans to distinguish "not provided" from "false". Batches add/remove into minimal `StoreFlags` calls. Takes required `account`, `mailbox`, and `uids` parameters, plus optional `read` and `flagged` booleans.
 - **`move_messages`** - Moves messages from one mailbox to another via IMAP MOVE (RFC 6851). Destination must differ from source. After a move, source UIDs are invalidated (expected IMAP behavior). Takes required `account`, `mailbox`, `uids`, and `destination` parameters.
+- **`copy_messages`** - Copies messages from one mailbox to another via IMAP COPY. Original messages remain in the source mailbox. Destination must differ from source. Copied messages get new UIDs in the destination. Takes required `account`, `mailbox`, `uids`, and `destination` parameters.
 
 ## Configuration
 
