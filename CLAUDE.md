@@ -140,6 +140,7 @@ Reconnections are logged to stderr via `log.Printf`. The identity check `m.conns
 - **`FetchMessageByUID(account, mailbox, uid, options)`** - Fetches message data for a single message by UID (selects mailbox in read-only mode, then fetches via UID set)
 - **`SearchMessages(account, mailbox, criteria)`** - Selects a mailbox in read-only mode and runs an IMAP UID SEARCH with the given criteria, returning matching UIDs
 - **`FetchMessagesByUID(account, mailbox, uids, options)`** - Fetches message data for multiple UIDs in a mailbox (selects mailbox in read-only mode, then fetches via UID set)
+- **`MailboxStatus(account, mailbox)`** - Issues an IMAP STATUS command for a mailbox, returning message count and unseen count
 - **`FindTrashMailbox(account)`** - Scans mailboxes for the `\Trash` special-use attribute and returns its name
 
 **Write Operations (read-write mailbox selection):**
@@ -357,7 +358,7 @@ Every new tool should have:
 ## Current Tools
 
 - **`list_accounts`** - Lists all configured IMAP accounts with host, username, TLS status, and connection state. Takes no parameters. Does not initiate connections.
-- **`list_mailboxes`** - Lists all mailboxes for a given IMAP account with special-use annotations (archive, drafts, sent, trash, junk, flagged, all mail, important). INBOX is always listed first, remaining mailboxes sorted alphabetically. Takes required `account` parameter.
+- **`list_mailboxes`** - Lists all mailboxes for a given IMAP account with special-use annotations (archive, drafts, sent, trash, junk, flagged, all mail, important) and message counts (total and unread). INBOX is always listed first, remaining mailboxes sorted alphabetically. Mailboxes with the `\Noselect` attribute are listed without counts. Takes required `account` parameter.
 - **`list_messages`** - Lists message envelopes in a mailbox with pagination (100 messages per page, newest first). Displays UID, date, sender, subject, and flag indicators (unread, flagged, replied, draft, deleted). Takes required `account` and `mailbox` parameters, optional `page` parameter (default: 1).
 - **`get_message`** - Retrieves a full email message by UID, including headers (From, To, CC, Date, Subject), flags, body text, and attachment metadata (filename, size, media type). Prefers `text/plain` body parts; falls back to HTML-to-text conversion via `HTMLToText()` (in `html.go`) when only `text/html` is available. HTML conversion strips tags, removes script/style blocks, preserves links as `text (url)`, decodes entities, and collapses blank lines. Output indicates when HTML conversion was used ("Body (converted from HTML):"). Body text is truncated at 1 MB. Takes required `account`, `mailbox`, and `uid` parameters.
 - **`search_messages`** - Searches messages in a mailbox using IMAP SEARCH criteria. Supports filtering by `from`, `to`, `subject`, `body` text, date range (`since`/`before` in YYYY-MM-DD format), and flags (`flagged`, `seen`). At least one search criterion is required beyond account and mailbox. Results are capped at 100 (newest first), with a note when more matches exist. Takes required `account` and `mailbox` parameters, plus optional search criteria.

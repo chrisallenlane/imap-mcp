@@ -551,6 +551,28 @@ func (m *Manager) DeleteMailbox(
 	)
 }
 
+// MailboxStatus issues an IMAP STATUS command for the named
+// mailbox and returns message and unseen counts.
+func (m *Manager) MailboxStatus(
+	account, mailbox string,
+) (*imap.StatusData, error) {
+	return withRetryResult(
+		m,
+		account,
+		func(
+			c *imapclient.Client,
+		) (*imap.StatusData, error) {
+			return c.Status(
+				mailbox,
+				&imap.StatusOptions{
+					NumMessages: true,
+					NumUnseen:   true,
+				},
+			).Wait()
+		},
+	)
+}
+
 // FindTrashMailbox scans the account's mailboxes for one with
 // the \Trash special-use attribute and returns its name.
 func (m *Manager) FindTrashMailbox(

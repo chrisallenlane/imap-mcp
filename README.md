@@ -15,7 +15,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server that p
 | Tool | Description |
 |------|-------------|
 | `list_accounts` | Lists all configured IMAP accounts with connection status |
-| `list_mailboxes` | Lists mailboxes for an account with special-use annotations |
+| `list_mailboxes` | Lists mailboxes for an account with special-use annotations and message counts |
 | `list_messages` | Lists message envelopes with pagination (100 per page, newest first) |
 | `get_message` | Retrieves a full message by UID (headers, body, attachments) |
 | `search_messages` | Searches messages by from, to, subject, body, date range, and flags |

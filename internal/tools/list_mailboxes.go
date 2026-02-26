@@ -4,16 +4,23 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"sort"
 	"strings"
 
 	imap "github.com/emersion/go-imap/v2"
 )
 
-// mailboxLister is a narrow interface for listing mailboxes.
+// mailboxLister is a narrow interface for listing mailboxes
+// and querying their status.
 // *imapmanager.Manager satisfies this implicitly.
 type mailboxLister interface {
-	ListMailboxes(account string) ([]*imap.ListData, error)
+	ListMailboxes(
+		account string,
+	) ([]*imap.ListData, error)
+	MailboxStatus(
+		account, mailbox string,
+	) (*imap.StatusData, error)
 }
 
 // ListMailboxes is an MCP tool that lists all mailboxes for an
@@ -30,7 +37,7 @@ func NewListMailboxes(lister mailboxLister) *ListMailboxes {
 // Description returns a description of what the tool does.
 func (t *ListMailboxes) Description() string {
 	return "List all mailboxes for an IMAP account with " +
-		"special-use annotations"
+		"special-use annotations and message counts"
 }
 
 // InputSchema returns the JSON schema for the tool's input.
@@ -82,7 +89,50 @@ func (t *ListMailboxes) Execute(
 		), nil
 	}
 
-	return formatMailboxes(params.Account, mailboxes), nil
+	// Fetch status for each selectable mailbox.
+	statuses := make(map[string]*imap.StatusData)
+	for _, mb := range mailboxes {
+		if hasAttr(mb.Attrs, imap.MailboxAttrNoSelect) {
+			continue
+		}
+
+		sd, err := t.lister.MailboxStatus(
+			params.Account,
+			mb.Mailbox,
+		)
+		if err != nil {
+			// Log the error but don't fail the whole
+			// listing -- partial results are better
+			// than none.
+			log.Printf(
+				"status failed for %q: %v",
+				mb.Mailbox,
+				err,
+			)
+			continue
+		}
+
+		statuses[mb.Mailbox] = sd
+	}
+
+	return formatMailboxes(
+		params.Account,
+		mailboxes,
+		statuses,
+	), nil
+}
+
+// hasAttr reports whether attrs contains the given attribute.
+func hasAttr(
+	attrs []imap.MailboxAttr,
+	target imap.MailboxAttr,
+) bool {
+	for _, a := range attrs {
+		if a == target {
+			return true
+		}
+	}
+	return false
 }
 
 // specialUseLabels maps IMAP special-use attributes to
@@ -100,10 +150,12 @@ var specialUseLabels = map[imap.MailboxAttr]string{
 
 // formatMailboxes formats a list of mailboxes into a
 // human-readable string. INBOX is always listed first,
-// remaining mailboxes are sorted alphabetically.
+// remaining mailboxes are sorted alphabetically. Message
+// counts are shown for mailboxes with status data.
 func formatMailboxes(
 	account string,
 	mailboxes []*imap.ListData,
+	statuses map[string]*imap.StatusData,
 ) string {
 	// Separate INBOX from the rest, then sort the rest.
 	var inbox *imap.ListData
@@ -138,20 +190,47 @@ func formatMailboxes(
 
 	for _, mb := range sorted {
 		annotation := specialUseAnnotation(mb.Attrs)
+		status := ""
+		if sd, ok := statuses[mb.Mailbox]; ok {
+			status = formatStatus(sd)
+		}
+
+		fmt.Fprintf(&b, "\n  %s", mb.Mailbox)
 		if annotation != "" {
-			fmt.Fprintf(
-				&b,
-				"\n  %s    (%s)",
-				mb.Mailbox,
-				annotation,
-			)
-		} else {
-			fmt.Fprintf(&b, "\n  %s", mb.Mailbox)
+			fmt.Fprintf(&b, "  (%s)", annotation)
+		}
+		if status != "" {
+			fmt.Fprintf(&b, "  %s", status)
 		}
 	}
 
 	b.WriteString("\n")
 	return b.String()
+}
+
+// formatStatus formats status data as a human-readable count
+// string, e.g. "5 messages, 2 unread".
+func formatStatus(sd *imap.StatusData) string {
+	if sd.NumMessages == nil {
+		return ""
+	}
+
+	msgs := *sd.NumMessages
+	label := "messages"
+	if msgs == 1 {
+		label = "message"
+	}
+
+	if sd.NumUnseen != nil {
+		return fmt.Sprintf(
+			"%d %s, %d unread",
+			msgs,
+			label,
+			*sd.NumUnseen,
+		)
+	}
+
+	return fmt.Sprintf("%d %s", msgs, label)
 }
 
 // specialUseAnnotation returns the human-readable label for
