@@ -2,8 +2,10 @@ package tools
 
 import (
 	"strings"
+	"time"
 
 	imap "github.com/emersion/go-imap/v2"
+	"github.com/emersion/go-imap/v2/imapclient"
 )
 
 // flagLabels maps IMAP flags to human-readable labels.
@@ -43,4 +45,15 @@ func formatFlags(flags []imap.Flag) string {
 	}
 
 	return strings.Join(labels, ", ")
+}
+
+// envelopeDate returns the envelope date from a message,
+// or the zero time if the envelope is nil.
+func envelopeDate(
+	msg *imapclient.FetchMessageBuffer,
+) time.Time {
+	if msg.Envelope != nil {
+		return msg.Envelope.Date
+	}
+	return time.Time{}
 }

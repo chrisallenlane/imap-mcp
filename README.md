@@ -10,6 +10,16 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server that p
 - **TLS Support**: Configurable TLS or plaintext connections per account
 - **Tool System**: Clean interface for adding new email capabilities
 
+## Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `list_accounts` | Lists all configured IMAP accounts with connection status |
+| `list_mailboxes` | Lists mailboxes for an account with special-use annotations |
+| `list_messages` | Lists message envelopes with pagination (100 per page, newest first) |
+| `get_message` | Retrieves a full message by UID (headers, body, attachments) |
+| `search_messages` | Searches messages by from, to, subject, body, date range, and flags |
+
 ## Project Structure
 
 ```

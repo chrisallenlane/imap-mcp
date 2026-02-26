@@ -143,6 +143,63 @@ func (m *Manager) FetchMessageByUID(
 	return client.Fetch(uidSet, options).Collect()
 }
 
+// SearchMessages selects a mailbox in read-only mode and
+// runs an IMAP UID SEARCH with the given criteria.
+func (m *Manager) SearchMessages(
+	account, mailbox string,
+	criteria *imap.SearchCriteria,
+) ([]imap.UID, error) {
+	client, err := m.GetClient(account)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = client.Select(
+		mailbox,
+		&imap.SelectOptions{ReadOnly: true},
+	).Wait()
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to examine mailbox: %w",
+			err,
+		)
+	}
+
+	searchData, err := client.UIDSearch(criteria, nil).Wait()
+	if err != nil {
+		return nil, fmt.Errorf("search failed: %w", err)
+	}
+
+	return searchData.AllUIDs(), nil
+}
+
+// FetchMessagesByUID fetches messages for multiple UIDs
+// in the specified mailbox.
+func (m *Manager) FetchMessagesByUID(
+	account, mailbox string,
+	uids []imap.UID,
+	options *imap.FetchOptions,
+) ([]*imapclient.FetchMessageBuffer, error) {
+	client, err := m.GetClient(account)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = client.Select(
+		mailbox,
+		&imap.SelectOptions{ReadOnly: true},
+	).Wait()
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to examine mailbox: %w",
+			err,
+		)
+	}
+
+	uidSet := imap.UIDSetNum(uids...)
+	return client.Fetch(uidSet, options).Collect()
+}
+
 // Close closes all open IMAP connections.
 func (m *Manager) Close() error {
 	m.mu.Lock()

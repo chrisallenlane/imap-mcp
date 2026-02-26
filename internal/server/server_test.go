@@ -142,10 +142,11 @@ func TestHandleListTools(t *testing.T) {
 		t.Fatal("tools should be a slice")
 	}
 
-	// list_accounts, list_mailboxes, list_messages, and
-	// get_message are registered by default
-	if len(tools) != 4 {
-		t.Errorf("Expected 4 tools, got %d", len(tools))
+	// list_accounts, list_mailboxes, list_messages,
+	// get_message, and search_messages are registered
+	// by default
+	if len(tools) != 5 {
+		t.Errorf("Expected 5 tools, got %d", len(tools))
 	}
 }
 
@@ -565,10 +566,11 @@ func TestHandleListTools_WithRegisteredTools(t *testing.T) {
 	}
 
 	// list_accounts + list_mailboxes + list_messages +
-	// get_message auto-registered, plus mock_tool
-	if len(toolsList) != 5 {
+	// get_message + search_messages auto-registered,
+	// plus mock_tool
+	if len(toolsList) != 6 {
 		t.Fatalf(
-			"expected 5 tools, got %d",
+			"expected 6 tools, got %d",
 			len(toolsList),
 		)
 	}
