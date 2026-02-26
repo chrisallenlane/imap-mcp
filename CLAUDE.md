@@ -33,7 +33,9 @@ imap-mcp/
 │   └── tools/                   # MCP tool implementations
 │       ├── tool.go              # Tool interface definition
 │       ├── list_accounts.go     # list_accounts tool
-│       └── list_accounts_test.go
+│       ├── list_accounts_test.go
+│       ├── list_mailboxes.go     # list_mailboxes tool
+│       └── list_mailboxes_test.go
 ├── config.example.toml          # Example configuration file
 ├── Makefile                     # Build automation
 ├── CLAUDE.md                    # This file
@@ -94,6 +96,7 @@ Manages persistent IMAP connections per account with lazy initialization:
 
 - **`NewManager(cfg)`** - Creates a manager from config
 - **`GetClient(accountName)`** - Returns an IMAP client, connecting on first use
+- **`ListMailboxes(accountName)`** - Returns all mailboxes for an account (connects lazily if needed, issues IMAP LIST command)
 - **`IsConnected(accountName)`** - Checks if an account has an open connection (no side effects)
 - **`Config()`** - Returns the manager's config
 - **`Close()`** - Closes all open connections
@@ -187,6 +190,8 @@ make clean
 
 ### 1. Create the tool file in `internal/tools/`
 
+Define a narrow interface for the Manager methods the tool needs, then depend on that interface (not the concrete Manager). This enables lightweight mock-based testing.
+
 ```go
 package tools
 
@@ -194,16 +199,19 @@ import (
     "context"
     "encoding/json"
     "fmt"
-
-    imapmanager "github.com/chrisallenlane/imap-mcp/internal/imap"
 )
 
-type MyTool struct {
-    imap *imapmanager.Manager
+// narrow interface satisfied by *imapmanager.Manager
+type myDoer interface {
+    DoSomething(account string) (string, error)
 }
 
-func NewMyTool(mgr *imapmanager.Manager) *MyTool {
-    return &MyTool{imap: mgr}
+type MyTool struct {
+    doer myDoer
+}
+
+func NewMyTool(doer myDoer) *MyTool {
+    return &MyTool{doer: doer}
 }
 
 func (t *MyTool) Description() string {
@@ -235,15 +243,12 @@ func (t *MyTool) Execute(ctx context.Context, args json.RawMessage) (string, err
         return "", fmt.Errorf("account is required")
     }
 
-    client, err := t.imap.GetClient(params.Account)
+    result, err := t.doer.DoSomething(params.Account)
     if err != nil {
-        return "", fmt.Errorf("failed to get IMAP client: %w", err)
+        return "", fmt.Errorf("failed to do something: %w", err)
     }
 
-    // Use client to perform IMAP operations
-    _ = client
-
-    return "Result", nil
+    return result, nil
 }
 ```
 
@@ -291,6 +296,7 @@ Every new tool should have:
 ## Current Tools
 
 - **`list_accounts`** - Lists all configured IMAP accounts with host, username, TLS status, and connection state. Takes no parameters. Does not initiate connections.
+- **`list_mailboxes`** - Lists all mailboxes for a given IMAP account with special-use annotations (archive, drafts, sent, trash, junk, flagged, all mail, important). INBOX is always listed first, remaining mailboxes sorted alphabetically. Takes required `account` parameter.
 
 ## Configuration
 
@@ -333,6 +339,9 @@ if len(items) == 0 {
 - Use `json.RawMessage` for unknown/dynamic structures
 - Type assert cautiously when parsing responses
 - Provide defaults for missing fields
+
+### Narrow Interfaces for Testability
+Tools define narrow interfaces for the Manager methods they need (e.g., `mailboxLister` in `list_mailboxes.go`). The concrete `*imapmanager.Manager` satisfies these implicitly. Tests provide lightweight mock implementations of these interfaces instead of mocking the full Manager. This pattern should be followed when adding new tools.
 
 ### IMAP Connection Lifecycle
 - Connections are established lazily on first `GetClient()` call

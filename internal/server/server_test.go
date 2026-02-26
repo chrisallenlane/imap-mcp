@@ -142,9 +142,9 @@ func TestHandleListTools(t *testing.T) {
 		t.Fatal("tools should be a slice")
 	}
 
-	// list_accounts is registered by default
-	if len(tools) != 1 {
-		t.Errorf("Expected 1 tool, got %d", len(tools))
+	// list_accounts and list_mailboxes are registered by default
+	if len(tools) != 2 {
+		t.Errorf("Expected 2 tools, got %d", len(tools))
 	}
 }
 
@@ -198,7 +198,7 @@ func TestHandleCallTool_InvalidTool(t *testing.T) {
 		t.Fatal("Expected error for nonexistent tool")
 	}
 
-	if !containsString(resp.Error.Message, "tool not found") {
+	if !strings.Contains(resp.Error.Message, "tool not found") {
 		t.Errorf(
 			"Error message should mention 'tool not found', got: %s",
 			resp.Error.Message,
@@ -222,7 +222,7 @@ func TestHandleCallTool_MalformedParams(t *testing.T) {
 		t.Fatal("Expected error for malformed params")
 	}
 
-	if !containsString(
+	if !strings.Contains(
 		resp.Error.Message,
 		"failed to parse tool call params",
 	) {
@@ -524,7 +524,7 @@ func TestHandleCallTool_ToolError(t *testing.T) {
 		t.Fatal("expected error for tool that returns error")
 	}
 
-	if !containsString(
+	if !strings.Contains(
 		resp.Error.Message,
 		"tool execution failed",
 	) {
@@ -563,10 +563,10 @@ func TestHandleListTools_WithRegisteredTools(t *testing.T) {
 		t.Fatal("tools should be a slice")
 	}
 
-	// list_accounts is auto-registered, plus our mock_tool
-	if len(toolsList) != 2 {
+	// list_accounts + list_mailboxes auto-registered, plus mock_tool
+	if len(toolsList) != 3 {
 		t.Fatalf(
-			"expected 2 tools, got %d",
+			"expected 3 tools, got %d",
 			len(toolsList),
 		)
 	}
@@ -629,19 +629,10 @@ func TestRun_ToolCallViaPipe(t *testing.T) {
 		t.Fatalf("failed to marshal result: %v", err)
 	}
 
-	if !containsString(string(data), "piped result") {
+	if !strings.Contains(string(data), "piped result") {
 		t.Errorf(
 			"response should contain 'piped result', got: %s",
 			string(data),
 		)
 	}
-}
-
-func containsString(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

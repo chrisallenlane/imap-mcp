@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/chrisallenlane/imap-mcp/internal/config"
+	imap "github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 )
 
@@ -69,6 +70,20 @@ func (m *Manager) IsConnected(accountName string) bool {
 // Config returns the manager's configuration.
 func (m *Manager) Config() *config.Config {
 	return m.config
+}
+
+// ListMailboxes returns all mailboxes for the named account.
+// It connects lazily if needed, then issues an IMAP LIST command.
+func (m *Manager) ListMailboxes(
+	account string,
+) ([]*imap.ListData, error) {
+	client, err := m.GetClient(account)
+	if err != nil {
+		return nil, err
+	}
+
+	listCmd := client.List("", "*", nil)
+	return listCmd.Collect()
 }
 
 // Close closes all open IMAP connections.
