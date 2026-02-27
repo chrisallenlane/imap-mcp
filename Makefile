@@ -29,12 +29,19 @@ setup: build
 		echo "  Edit config.toml with your IMAP credentials."; \
 		exit 1; \
 	fi
-	claude mcp add imap-mcp $(CURDIR)/dist/imap-mcp \
+	claude mcp add imap-mcp \
 		-s user \
-		--args -- --config $(CURDIR)/config.toml
+		-- $(CURDIR)/dist/imap-mcp --config $(CURDIR)/config.toml
 	@echo ""
 	@echo "Done. imap-mcp is now available in Claude Code."
 	@echo "Verify with: claude mcp list"
+
+## uninstall: unregister imap-mcp from Claude Code
+.PHONY: uninstall
+uninstall:
+	claude mcp remove -s user imap-mcp
+	@echo ""
+	@echo "Done. imap-mcp has been removed from Claude Code."
 
 ## clean: remove compiled executables
 .PHONY: clean
