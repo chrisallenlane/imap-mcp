@@ -240,34 +240,20 @@ func buildCriteria(
 
 	criteria := &imap.SearchCriteria{}
 
-	if from != "" {
-		criteria.Header = append(
-			criteria.Header,
-			imap.SearchCriteriaHeaderField{
-				Key:   "From",
-				Value: from,
-			},
-		)
-	}
-
-	if to != "" {
-		criteria.Header = append(
-			criteria.Header,
-			imap.SearchCriteriaHeaderField{
-				Key:   "To",
-				Value: to,
-			},
-		)
-	}
-
-	if subject != "" {
-		criteria.Header = append(
-			criteria.Header,
-			imap.SearchCriteriaHeaderField{
-				Key:   "Subject",
-				Value: subject,
-			},
-		)
+	for _, hdr := range []struct{ key, val string }{
+		{"From", from},
+		{"To", to},
+		{"Subject", subject},
+	} {
+		if hdr.val != "" {
+			criteria.Header = append(
+				criteria.Header,
+				imap.SearchCriteriaHeaderField{
+					Key:   hdr.key,
+					Value: hdr.val,
+				},
+			)
+		}
 	}
 
 	if body != "" {
@@ -298,30 +284,23 @@ func buildCriteria(
 		criteria.Before = t
 	}
 
-	if flagged != nil {
-		if *flagged {
-			criteria.Flag = append(
-				criteria.Flag,
-				imap.FlagFlagged,
-			)
-		} else {
-			criteria.NotFlag = append(
-				criteria.NotFlag,
-				imap.FlagFlagged,
-			)
+	for _, fc := range []struct {
+		val  *bool
+		flag imap.Flag
+	}{
+		{flagged, imap.FlagFlagged},
+		{seen, imap.FlagSeen},
+	} {
+		if fc.val == nil {
+			continue
 		}
-	}
-
-	if seen != nil {
-		if *seen {
+		if *fc.val {
 			criteria.Flag = append(
-				criteria.Flag,
-				imap.FlagSeen,
+				criteria.Flag, fc.flag,
 			)
 		} else {
 			criteria.NotFlag = append(
-				criteria.NotFlag,
-				imap.FlagSeen,
+				criteria.NotFlag, fc.flag,
 			)
 		}
 	}

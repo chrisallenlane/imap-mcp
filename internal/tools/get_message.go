@@ -331,35 +331,28 @@ func parseBody(raw []byte) (parsedBody, error) {
 			mediaType, ctParams, _ := part.Header.ContentType()
 			disp, dispParams, _ := part.Header.ContentDisposition()
 
-			// Collect the first text/plain part.
-			if mediaType == "text/plain" &&
-				disp != "attachment" &&
-				!plainFound {
-				data, readErr := readBodyPart(
-					part.Body,
-				)
-				if readErr != nil {
+			// Collect the first text/plain or text/html part.
+			for _, tp := range []struct {
+				media string
+				text  *string
+				found *bool
+			}{
+				{"text/plain", &plainText, &plainFound},
+				{"text/html", &htmlText, &htmlFound},
+			} {
+				if mediaType == tp.media &&
+					disp != "attachment" &&
+					!*tp.found {
+					data, readErr := readBodyPart(
+						part.Body,
+					)
+					if readErr != nil {
+						return nil
+					}
+					*tp.text = data
+					*tp.found = true
 					return nil
 				}
-				plainText = data
-				plainFound = true
-				return nil
-			}
-
-			// Collect the first text/html part as
-			// fallback.
-			if mediaType == "text/html" &&
-				disp != "attachment" &&
-				!htmlFound {
-				data, readErr := readBodyPart(
-					part.Body,
-				)
-				if readErr != nil {
-					return nil
-				}
-				htmlText = data
-				htmlFound = true
-				return nil
 			}
 
 			isAttachment := disp == "attachment" ||

@@ -116,10 +116,7 @@ func (t *MarkMessages) Execute(
 		)
 	}
 
-	uids := make([]imap.UID, len(params.UIDs))
-	for i, u := range params.UIDs {
-		uids[i] = imap.UID(u)
-	}
+	uids := toIMAPUIDs(params.UIDs)
 
 	var addFlags, removeFlags []imap.Flag
 
@@ -202,38 +199,22 @@ func formatMarkResult(
 	)
 
 	if len(addFlags) > 0 {
-		names := make([]string, len(addFlags))
-		for i, f := range addFlags {
-			names[i] = string(f)
-		}
 		fmt.Fprintf(
 			&b,
 			"  Added flags: %s\n",
-			strings.Join(names, ", "),
+			formatFlagNames(addFlags),
 		)
 	}
 
 	if len(removeFlags) > 0 {
-		names := make([]string, len(removeFlags))
-		for i, f := range removeFlags {
-			names[i] = string(f)
-		}
 		fmt.Fprintf(
 			&b,
 			"  Removed flags: %s\n",
-			strings.Join(names, ", "),
+			formatFlagNames(removeFlags),
 		)
 	}
 
-	uidStrs := make([]string, len(uids))
-	for i, u := range uids {
-		uidStrs[i] = fmt.Sprintf("%d", u)
-	}
-	fmt.Fprintf(
-		&b,
-		"  UIDs: %s\n",
-		strings.Join(uidStrs, ", "),
-	)
+	fmt.Fprintf(&b, "  UIDs: %s\n", formatUIDs(uids))
 
 	return b.String()
 }

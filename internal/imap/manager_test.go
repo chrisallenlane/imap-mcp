@@ -73,18 +73,7 @@ func TestConfig_ReturnsCfg(t *testing.T) {
 }
 
 func TestGetClient_UnknownAccount(t *testing.T) {
-	cfg := &config.Config{
-		Accounts: map[string]config.Account{
-			"gmail": {
-				Host:     "imap.gmail.com",
-				Port:     993,
-				Username: "user@gmail.com",
-				Password: "pass",
-				TLS:      true,
-			},
-		},
-	}
-	mgr := NewManager(cfg)
+	mgr := newTestManager()
 
 	_, err := mgr.GetClient("doesnotexist")
 	if err == nil {
@@ -93,18 +82,7 @@ func TestGetClient_UnknownAccount(t *testing.T) {
 }
 
 func TestIsConnected_UnknownAccount(t *testing.T) {
-	cfg := &config.Config{
-		Accounts: map[string]config.Account{
-			"gmail": {
-				Host:     "imap.gmail.com",
-				Port:     993,
-				Username: "user@gmail.com",
-				Password: "pass",
-				TLS:      true,
-			},
-		},
-	}
-	mgr := NewManager(cfg)
+	mgr := newTestManager()
 
 	if mgr.IsConnected("nonexistent") {
 		t.Error(
@@ -115,18 +93,7 @@ func TestIsConnected_UnknownAccount(t *testing.T) {
 }
 
 func TestIsConnected_KnownButNotConnected(t *testing.T) {
-	cfg := &config.Config{
-		Accounts: map[string]config.Account{
-			"gmail": {
-				Host:     "imap.gmail.com",
-				Port:     993,
-				Username: "user@gmail.com",
-				Password: "pass",
-				TLS:      true,
-			},
-		},
-	}
-	mgr := NewManager(cfg)
+	mgr := newTestManager()
 
 	// Account exists in config but GetClient was never called,
 	// so no connection should exist.

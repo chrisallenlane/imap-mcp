@@ -99,50 +99,9 @@ func isConnectionClosed(c *imapclient.Client) bool {
 	}
 }
 
-// withRetry executes fn with an IMAP client. If fn returns an
-// error and the connection appears dead, it reconnects once and
-// retries. Only a single retry is attempted.
-func (m *Manager) withRetry(
-	account string,
-	fn func(c *imapclient.Client) error,
-) error {
-	client, err := m.GetClient(account)
-	if err != nil {
-		return err
-	}
-
-	if err := fn(client); err != nil {
-		if !isConnectionClosed(client) {
-			return err
-		}
-
-		// Evict the dead connection under lock.
-		m.mu.Lock()
-		if m.conns[account] == client {
-			client.Close()
-			delete(m.conns, account)
-		}
-		m.mu.Unlock()
-
-		log.Printf(
-			"connection to %q lost, reconnecting...",
-			account,
-		)
-
-		// GetClient will establish a new connection.
-		client, err = m.GetClient(account)
-		if err != nil {
-			return fmt.Errorf("reconnect failed: %w", err)
-		}
-
-		return fn(client)
-	}
-
-	return nil
-}
-
-// withRetryResult is like withRetry but for operations that
-// return a value alongside an error.
+// withRetryResult executes fn with an IMAP client. If fn
+// returns an error and the connection appears dead, it
+// reconnects once and retries.
 func withRetryResult[T any](
 	m *Manager,
 	account string,
@@ -190,6 +149,22 @@ func withRetryResult[T any](
 	return result, nil
 }
 
+// withRetry is like withRetryResult for operations that
+// return only an error.
+func (m *Manager) withRetry(
+	account string,
+	fn func(c *imapclient.Client) error,
+) error {
+	_, err := withRetryResult(
+		m,
+		account,
+		func(c *imapclient.Client) (struct{}, error) {
+			return struct{}{}, fn(c)
+		},
+	)
+	return err
+}
+
 // ListMailboxes returns all mailboxes for the named account.
 // It connects lazily if needed, then issues an IMAP LIST command.
 func (m *Manager) ListMailboxes(
@@ -213,10 +188,7 @@ func (m *Manager) ExamineMailbox(
 		m,
 		account,
 		func(c *imapclient.Client) (*imap.SelectData, error) {
-			return c.Select(
-				mailbox,
-				&imap.SelectOptions{ReadOnly: true},
-			).Wait()
+			return selectMailbox(c, mailbox, true)
 		},
 	)
 }
@@ -253,7 +225,7 @@ func (m *Manager) FetchMessageByUID(
 		func(
 			c *imapclient.Client,
 		) ([]*imapclient.FetchMessageBuffer, error) {
-			if err := selectReadOnly(c, mailbox); err != nil {
+			if _, err := selectMailbox(c, mailbox, true); err != nil {
 				return nil, err
 			}
 			uidSet := imap.UIDSetNum(uid)
@@ -272,7 +244,7 @@ func (m *Manager) SearchMessages(
 		m,
 		account,
 		func(c *imapclient.Client) ([]imap.UID, error) {
-			if err := selectReadOnly(c, mailbox); err != nil {
+			if _, err := selectMailbox(c, mailbox, true); err != nil {
 				return nil, err
 			}
 			searchData, err := c.UIDSearch(
@@ -302,7 +274,7 @@ func (m *Manager) FetchMessagesByUID(
 		func(
 			c *imapclient.Client,
 		) ([]*imapclient.FetchMessageBuffer, error) {
-			if err := selectReadOnly(c, mailbox); err != nil {
+			if _, err := selectMailbox(c, mailbox, true); err != nil {
 				return nil, err
 			}
 			uidSet := imap.UIDSetNum(uids...)
@@ -311,40 +283,29 @@ func (m *Manager) FetchMessagesByUID(
 	)
 }
 
-// selectReadOnly selects a mailbox in read-only mode.
-func selectReadOnly(
+// selectMailbox selects a mailbox in read-only or read-write
+// mode and returns the mailbox metadata.
+func selectMailbox(
 	client *imapclient.Client,
 	mailbox string,
-) error {
-	_, err := client.Select(
+	readOnly bool,
+) (*imap.SelectData, error) {
+	data, err := client.Select(
 		mailbox,
-		&imap.SelectOptions{ReadOnly: true},
+		&imap.SelectOptions{ReadOnly: readOnly},
 	).Wait()
 	if err != nil {
-		return fmt.Errorf(
-			"failed to examine mailbox: %w",
+		verb := "select"
+		if readOnly {
+			verb = "examine"
+		}
+		return nil, fmt.Errorf(
+			"failed to %s mailbox: %w",
+			verb,
 			err,
 		)
 	}
-	return nil
-}
-
-// selectReadWrite selects a mailbox in read-write mode.
-func selectReadWrite(
-	client *imapclient.Client,
-	mailbox string,
-) error {
-	_, err := client.Select(
-		mailbox,
-		&imap.SelectOptions{ReadOnly: false},
-	).Wait()
-	if err != nil {
-		return fmt.Errorf(
-			"failed to select mailbox: %w",
-			err,
-		)
-	}
-	return nil
+	return data, nil
 }
 
 // SelectMailbox opens a mailbox in read-write mode (IMAP SELECT)
@@ -356,12 +317,17 @@ func (m *Manager) SelectMailbox(
 		m,
 		account,
 		func(c *imapclient.Client) (*imap.SelectData, error) {
-			return c.Select(
-				mailbox,
-				&imap.SelectOptions{ReadOnly: false},
-			).Wait()
+			return selectMailbox(c, mailbox, false)
 		},
 	)
+}
+
+// validateUIDs returns an error if the UID slice is empty.
+func validateUIDs(uids []imap.UID) error {
+	if len(uids) == 0 {
+		return fmt.Errorf("no UIDs provided")
+	}
+	return nil
 }
 
 // StoreFlags sets or clears flags on messages identified by UIDs.
@@ -371,14 +337,14 @@ func (m *Manager) StoreFlags(
 	op imap.StoreFlagsOp,
 	flags []imap.Flag,
 ) error {
-	if len(uids) == 0 {
-		return fmt.Errorf("no UIDs provided")
+	if err := validateUIDs(uids); err != nil {
+		return err
 	}
 
 	return m.withRetry(
 		account,
 		func(c *imapclient.Client) error {
-			if err := selectReadWrite(c, mailbox); err != nil {
+			if _, err := selectMailbox(c, mailbox, false); err != nil {
 				return err
 			}
 
@@ -409,28 +375,11 @@ func (m *Manager) MoveMessages(
 	uids []imap.UID,
 	destMailbox string,
 ) error {
-	if len(uids) == 0 {
-		return fmt.Errorf("no UIDs provided")
-	}
-
-	return m.withRetry(
-		account,
-		func(c *imapclient.Client) error {
-			if err := selectReadWrite(c, mailbox); err != nil {
-				return err
-			}
-
-			uidSet := imap.UIDSetNum(uids...)
-			if _, err := c.Move(
-				uidSet, destMailbox,
-			).Wait(); err != nil {
-				return fmt.Errorf(
-					"failed to move messages: %w",
-					err,
-				)
-			}
-
-			return nil
+	return m.transferMessages(
+		account, mailbox, uids, destMailbox, "move",
+		func(c *imapclient.Client, s imap.UIDSet, d string) error {
+			_, err := c.Move(s, d).Wait()
+			return err
 		},
 	)
 }
@@ -442,23 +391,38 @@ func (m *Manager) CopyMessages(
 	uids []imap.UID,
 	destMailbox string,
 ) error {
-	if len(uids) == 0 {
-		return fmt.Errorf("no UIDs provided")
+	return m.transferMessages(
+		account, mailbox, uids, destMailbox, "copy",
+		func(c *imapclient.Client, s imap.UIDSet, d string) error {
+			_, err := c.Copy(s, d).Wait()
+			return err
+		},
+	)
+}
+
+// transferMessages is a shared helper for move/copy operations.
+func (m *Manager) transferMessages(
+	account, mailbox string,
+	uids []imap.UID,
+	destMailbox, verb string,
+	op func(*imapclient.Client, imap.UIDSet, string) error,
+) error {
+	if err := validateUIDs(uids); err != nil {
+		return err
 	}
 
 	return m.withRetry(
 		account,
 		func(c *imapclient.Client) error {
-			if err := selectReadWrite(c, mailbox); err != nil {
+			if _, err := selectMailbox(c, mailbox, false); err != nil {
 				return err
 			}
 
 			uidSet := imap.UIDSetNum(uids...)
-			if _, err := c.Copy(
-				uidSet, destMailbox,
-			).Wait(); err != nil {
+			if err := op(c, uidSet, destMailbox); err != nil {
 				return fmt.Errorf(
-					"failed to copy messages: %w",
+					"failed to %s messages: %w",
+					verb,
 					err,
 				)
 			}
@@ -474,14 +438,14 @@ func (m *Manager) ExpungeMessages(
 	account, mailbox string,
 	uids []imap.UID,
 ) error {
-	if len(uids) == 0 {
-		return fmt.Errorf("no UIDs provided")
+	if err := validateUIDs(uids); err != nil {
+		return err
 	}
 
 	return m.withRetry(
 		account,
 		func(c *imapclient.Client) error {
-			if err := selectReadWrite(c, mailbox); err != nil {
+			if _, err := selectMailbox(c, mailbox, false); err != nil {
 				return err
 			}
 

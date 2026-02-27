@@ -35,8 +35,12 @@ imap-mcp/
 │   │   └── types.go             # JSON-RPC request/response types
 │   └── tools/                   # MCP tool implementations
 │       ├── tool.go              # Tool interface definition
-│       ├── format.go            # Shared formatting helpers (formatFlags, flagLabels)
+│       ├── format.go            # Shared formatting helpers (formatFlags, formatUIDs, toIMAPUIDs, etc.)
+│       ├── format_test.go       # Format helper tests
+│       ├── format_fuzz_test.go  # Fuzz tests for format helpers
 │       ├── html.go              # HTML-to-text conversion (HTMLToText)
+│       ├── html_test.go         # HTML-to-text tests
+│       ├── html_fuzz_test.go    # Fuzz tests for HTML-to-text
 │       ├── helpers_test.go      # Shared test helpers (assertContains, assertNotContains)
 │       ├── list_accounts.go     # list_accounts tool
 │       ├── list_accounts_test.go
@@ -44,15 +48,20 @@ imap-mcp/
 │       ├── list_mailboxes_test.go
 │       ├── list_messages.go      # list_messages tool
 │       ├── list_messages_test.go
+│       ├── list_messages_fuzz_test.go
 │       ├── get_message.go        # get_message tool
 │       ├── get_message_test.go
+│       ├── get_message_fuzz_test.go
 │       ├── search_messages.go    # search_messages tool
 │       ├── search_messages_test.go
+│       ├── search_messages_fuzz_test.go
 │       ├── mark_messages.go      # mark_messages tool
 │       ├── mark_messages_test.go
-│       ├── move_messages.go      # move_messages tool
+│       ├── transfer_messages.go  # Shared transferTool implementation for move/copy
+│       ├── transfer_messages_test.go
+│       ├── move_messages.go      # move_messages narrow interface + constructor (delegates to transferTool)
 │       ├── move_messages_test.go
-│       ├── copy_messages.go      # copy_messages tool
+│       ├── copy_messages.go      # copy_messages narrow interface + constructor (delegates to transferTool)
 │       ├── copy_messages_test.go
 │       ├── delete_messages.go    # delete_messages tool
 │       ├── delete_messages_test.go
@@ -126,11 +135,13 @@ Manages persistent IMAP connections per account with lazy initialization and tra
 - **`Close()`** - Closes all open connections
 
 **Auto-Reconnect:**
-All read and write operations are wrapped in `withRetry`/`withRetryResult` which:
+All read and write operations are wrapped in `withRetryResult` (generic, returns `(T, error)`) which:
 1. Get or reconnect the client (dead connections are evicted proactively)
 2. Execute the operation
 3. If the operation fails and the connection is dead, evict the dead client, reconnect once, and retry
 4. If the retry also fails, return the error to the caller
+
+`withRetry` is a thin wrapper around `withRetryResult` for operations that return only an error.
 
 Reconnections are logged to stderr via `log.Printf`. The identity check `m.conns[account] == client` prevents race conditions when multiple goroutines detect the same dead connection.
 
@@ -147,11 +158,16 @@ Reconnections are logged to stderr via `log.Printf`. The identity check `m.conns
 **Write Operations (read-write mailbox selection):**
 - **`SelectMailbox(account, mailbox)`** - Opens a mailbox in read-write mode (IMAP SELECT) and returns metadata
 - **`StoreFlags(account, mailbox, uids, op, flags)`** - Sets or clears flags on messages identified by UIDs (selects mailbox read-write, then issues STORE with silent mode)
-- **`MoveMessages(account, mailbox, uids, destMailbox)`** - Moves messages identified by UIDs from one mailbox to another (IMAP MOVE)
-- **`CopyMessages(account, mailbox, uids, destMailbox)`** - Copies messages identified by UIDs from one mailbox to another (IMAP COPY)
+- **`MoveMessages(account, mailbox, uids, destMailbox)`** - Moves messages identified by UIDs from one mailbox to another (IMAP MOVE). Delegates to `transferMessages`.
+- **`CopyMessages(account, mailbox, uids, destMailbox)`** - Copies messages identified by UIDs from one mailbox to another (IMAP COPY). Delegates to `transferMessages`.
 - **`ExpungeMessages(account, mailbox, uids)`** - Permanently removes messages identified by UIDs from a mailbox (IMAP UID EXPUNGE)
 - **`CreateMailbox(account, name)`** - Creates a new mailbox on the server (IMAP CREATE)
 - **`DeleteMailbox(account, name)`** - Deletes a mailbox from the server (IMAP DELETE)
+
+**Internal Helpers:**
+- **`selectMailbox(client, mailbox, readOnly)`** - Selects a mailbox in read-only or read-write mode and returns metadata. Used by both read and write operations.
+- **`transferMessages(account, mailbox, uids, destMailbox, verb, op)`** - Shared helper for move/copy operations. Validates UIDs, selects the mailbox read-write, and executes the transfer operation with retry.
+- **`validateUIDs(uids)`** - Returns an error if the UID slice is empty. Used by `StoreFlags`, `transferMessages`, and `ExpungeMessages`.
 
 Connections are thread-safe (protected by `sync.Mutex`). TLS vs insecure connections are selected based on the account's `tls` config field. Dead connections are detected and replaced transparently — callers never need to handle reconnection.
 
@@ -351,9 +367,9 @@ Every new tool should have:
 - Tests run in `make check`
 
 ### Code Organization
-- One tool per file
+- One tool per file, except `move_messages` and `copy_messages` which share a `transferTool` implementation in `transfer_messages.go`
 - Tool interface defined in `tool.go`
-- Shared formatting helpers (e.g., `formatFlags`, `flagLabels`) live in `format.go`
+- Shared formatting helpers (e.g., `formatFlags`, `formatUIDs`, `toIMAPUIDs`, `formatFlagNames`, `envelopeDate`) live in `format.go`
 - Shared test helpers (e.g., `assertContains`) live in `helpers_test.go`
 
 ## Current Tools

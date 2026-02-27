@@ -109,10 +109,7 @@ func (t *DeleteMessages) Execute(
 		return "", fmt.Errorf("uids must not be empty")
 	}
 
-	uids := make([]imap.UID, len(params.UIDs))
-	for i, u := range params.UIDs {
-		uids[i] = imap.UID(u)
-	}
+	uids := toIMAPUIDs(params.UIDs)
 
 	if params.Permanent {
 		if err := t.deleter.ExpungeMessages(
@@ -191,16 +188,7 @@ func formatSafeDeleteResult(
 		account,
 	)
 	fmt.Fprintf(&b, "  From: %s\n", mailbox)
-
-	uidStrs := make([]string, len(uids))
-	for i, u := range uids {
-		uidStrs[i] = fmt.Sprintf("%d", u)
-	}
-	fmt.Fprintf(
-		&b,
-		"  UIDs: %s\n",
-		strings.Join(uidStrs, ", "),
-	)
+	fmt.Fprintf(&b, "  UIDs: %s\n", formatUIDs(uids))
 
 	return b.String()
 }
@@ -221,15 +209,7 @@ func formatPermanentDeleteResult(
 		mailbox,
 	)
 
-	uidStrs := make([]string, len(uids))
-	for i, u := range uids {
-		uidStrs[i] = fmt.Sprintf("%d", u)
-	}
-	fmt.Fprintf(
-		&b,
-		"  UIDs: %s\n",
-		strings.Join(uidStrs, ", "),
-	)
+	fmt.Fprintf(&b, "  UIDs: %s\n", formatUIDs(uids))
 
 	fmt.Fprintf(
 		&b,

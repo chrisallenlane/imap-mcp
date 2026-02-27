@@ -90,6 +90,36 @@ func formatMessage(
 	)
 }
 
+// formatUIDs formats a slice of uint32 UIDs as a
+// comma-separated string.
+func formatUIDs(uids []uint32) string {
+	strs := make([]string, len(uids))
+	for i, u := range uids {
+		strs[i] = fmt.Sprintf("%d", u)
+	}
+	return strings.Join(strs, ", ")
+}
+
+// toIMAPUIDs converts a slice of uint32 to a slice of
+// imap.UID.
+func toIMAPUIDs(ids []uint32) []imap.UID {
+	uids := make([]imap.UID, len(ids))
+	for i, u := range ids {
+		uids[i] = imap.UID(u)
+	}
+	return uids
+}
+
+// formatFlagNames converts a slice of imap.Flag to a
+// comma-separated string of flag names.
+func formatFlagNames(flags []imap.Flag) string {
+	names := make([]string, len(flags))
+	for i, f := range flags {
+		names[i] = string(f)
+	}
+	return strings.Join(names, ", ")
+}
+
 // envelopeDate returns the envelope date from a message,
 // or the zero time if the envelope is nil.
 func envelopeDate(
