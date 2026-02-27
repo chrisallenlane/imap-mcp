@@ -221,6 +221,94 @@ func TestHandleNotification(t *testing.T) {
 	}
 }
 
+func TestHandleListTools_SMTPDisabled(t *testing.T) {
+	s := newTestServer()
+
+	req := &JSONRPCRequest{
+		JSONRPC: "2.0",
+		ID:      2,
+		Method:  "tools/list",
+	}
+
+	resp := s.handleRequest(context.Background(), req)
+	result := resp.Result.(map[string]interface{})
+	tools := result["tools"].([]map[string]interface{})
+
+	smtpTools := map[string]bool{
+		"send_message":  false,
+		"save_draft":    false,
+		"reply_message": false,
+	}
+	for _, tool := range tools {
+		name := tool["name"].(string)
+		if _, isSMTP := smtpTools[name]; isSMTP {
+			smtpTools[name] = true
+		}
+	}
+
+	for name, found := range smtpTools {
+		if found {
+			t.Errorf(
+				"%q should NOT be registered "+
+					"when SMTP is disabled",
+				name,
+			)
+		}
+	}
+}
+
+func TestHandleListTools_SMTPEnabled(t *testing.T) {
+	cfg := &config.Config{
+		Accounts: map[string]config.Account{
+			"test": {
+				Host:        "localhost",
+				Port:        993,
+				Username:    "user",
+				Password:    "pass",
+				TLS:         true,
+				SMTPEnabled: true,
+				SMTPHost:    "smtp.example.com",
+				SMTPPort:    587,
+			},
+		},
+	}
+	mgr := imapmanager.NewConnectionManager(cfg)
+	smtp := smtpmanager.NewManager(cfg)
+	s := New(mgr, smtp)
+
+	req := &JSONRPCRequest{
+		JSONRPC: "2.0",
+		ID:      2,
+		Method:  "tools/list",
+	}
+
+	resp := s.handleRequest(context.Background(), req)
+	result := resp.Result.(map[string]interface{})
+	tools := result["tools"].([]map[string]interface{})
+
+	smtpTools := map[string]bool{
+		"send_message":  false,
+		"save_draft":    false,
+		"reply_message": false,
+	}
+	for _, tool := range tools {
+		name := tool["name"].(string)
+		if _, isSMTP := smtpTools[name]; isSMTP {
+			smtpTools[name] = true
+		}
+	}
+
+	for name, found := range smtpTools {
+		if !found {
+			t.Errorf(
+				"%q should be registered "+
+					"when SMTP is enabled",
+				name,
+			)
+		}
+	}
+}
+
 func TestHandleCallTool_InvalidTool(t *testing.T) {
 	s := newTestServer()
 

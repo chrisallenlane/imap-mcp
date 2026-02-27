@@ -2,6 +2,7 @@ package tools
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -145,7 +146,9 @@ func TestSendMessage_Success(t *testing.T) {
 		"body":    "Hello",
 	})
 
-	result, err := tool.Execute(nil, args)
+	result, err := tool.Execute(
+		context.Background(), args,
+	)
 	if err != nil {
 		t.Fatalf("Execute() error: %v", err)
 	}
@@ -199,7 +202,7 @@ func TestSendMessage_WithSMTPFrom(t *testing.T) {
 		"body":    "Hello",
 	})
 
-	_, err := tool.Execute(nil, args)
+	_, err := tool.Execute(context.Background(), args)
 	if err != nil {
 		t.Fatalf("Execute() error: %v", err)
 	}
@@ -226,7 +229,7 @@ func TestSendMessage_WithCCAndBCC(t *testing.T) {
 		"body":    "Hello",
 	})
 
-	result, err := tool.Execute(nil, args)
+	result, err := tool.Execute(context.Background(), args)
 	if err != nil {
 		t.Fatalf("Execute() error: %v", err)
 	}
@@ -276,7 +279,7 @@ func TestSendMessage_SaveSent(t *testing.T) {
 		"body":    "Hello",
 	})
 
-	result, err := tool.Execute(nil, args)
+	result, err := tool.Execute(context.Background(), args)
 	if err != nil {
 		t.Fatalf("Execute() error: %v", err)
 	}
@@ -285,6 +288,81 @@ func TestSendMessage_SaveSent(t *testing.T) {
 		t.Error("AppendMessage should have been called")
 	}
 	assertContains(t, result, "Saved to Sent folder")
+
+	// Verify \Seen flag was set.
+	foundSeen := false
+	for _, f := range saver.appendedFlags {
+		if f == imap.FlagSeen {
+			foundSeen = true
+			break
+		}
+	}
+	if !foundSeen {
+		t.Error(
+			"expected \\Seen flag in appended message",
+		)
+	}
+}
+
+func TestSendMessage_SaveSentFindError(t *testing.T) {
+	cfg := smtpEnabledConfig()
+	acct := cfg.Accounts["test"]
+	acct.SaveSent = true
+	cfg.Accounts["test"] = acct
+
+	sender := &mockEmailSender{config: cfg}
+	saver := &mockSentSaver{
+		findErr: errors.New("no sent folder"),
+	}
+	tool := NewSendMessage(sender, saver)
+
+	args, _ := json.Marshal(map[string]interface{}{
+		"account": "test",
+		"to":      []string{"to@example.com"},
+		"subject": "Test",
+		"body":    "Hello",
+	})
+
+	result, err := tool.Execute(context.Background(), args)
+	if err != nil {
+		t.Fatalf("Execute() error: %v", err)
+	}
+
+	// Send should still succeed.
+	assertContains(t, result, "sent successfully")
+	// But not saved to Sent.
+	assertNotContains(t, result, "Saved to Sent folder")
+}
+
+func TestSendMessage_SaveSentAppendError(t *testing.T) {
+	cfg := smtpEnabledConfig()
+	acct := cfg.Accounts["test"]
+	acct.SaveSent = true
+	cfg.Accounts["test"] = acct
+
+	sender := &mockEmailSender{config: cfg}
+	saver := &mockSentSaver{
+		sentMailbox: "Sent",
+		appendErr:   errors.New("IMAP error"),
+	}
+	tool := NewSendMessage(sender, saver)
+
+	args, _ := json.Marshal(map[string]interface{}{
+		"account": "test",
+		"to":      []string{"to@example.com"},
+		"subject": "Test",
+		"body":    "Hello",
+	})
+
+	result, err := tool.Execute(context.Background(), args)
+	if err != nil {
+		t.Fatalf("Execute() error: %v", err)
+	}
+
+	// Send should still succeed.
+	assertContains(t, result, "sent successfully")
+	// But not saved to Sent.
+	assertNotContains(t, result, "Saved to Sent folder")
 }
 
 func TestSendMessage_SaveSentDisabled(t *testing.T) {
@@ -299,7 +377,7 @@ func TestSendMessage_SaveSentDisabled(t *testing.T) {
 		"body":    "Hello",
 	})
 
-	result, err := tool.Execute(nil, args)
+	result, err := tool.Execute(context.Background(), args)
 	if err != nil {
 		t.Fatalf("Execute() error: %v", err)
 	}
@@ -324,7 +402,7 @@ func TestSendMessage_MissingAccount(t *testing.T) {
 		"body":    "Hello",
 	})
 
-	_, err := tool.Execute(nil, args)
+	_, err := tool.Execute(context.Background(), args)
 	if err == nil {
 		t.Fatal("expected error for missing account")
 	}
@@ -342,7 +420,7 @@ func TestSendMessage_MissingTo(t *testing.T) {
 		"body":    "Hello",
 	})
 
-	_, err := tool.Execute(nil, args)
+	_, err := tool.Execute(context.Background(), args)
 	if err == nil {
 		t.Fatal("expected error for missing to")
 	}
@@ -360,7 +438,7 @@ func TestSendMessage_MissingSubject(t *testing.T) {
 		"body":    "Hello",
 	})
 
-	_, err := tool.Execute(nil, args)
+	_, err := tool.Execute(context.Background(), args)
 	if err == nil {
 		t.Fatal("expected error for missing subject")
 	}
@@ -378,7 +456,7 @@ func TestSendMessage_MissingBody(t *testing.T) {
 		"subject": "Test",
 	})
 
-	_, err := tool.Execute(nil, args)
+	_, err := tool.Execute(context.Background(), args)
 	if err == nil {
 		t.Fatal("expected error for missing body")
 	}
@@ -397,7 +475,7 @@ func TestSendMessage_UnknownAccount(t *testing.T) {
 		"body":    "Hello",
 	})
 
-	_, err := tool.Execute(nil, args)
+	_, err := tool.Execute(context.Background(), args)
 	if err == nil {
 		t.Fatal("expected error for unknown account")
 	}
@@ -427,7 +505,7 @@ func TestSendMessage_SMTPNotEnabled(t *testing.T) {
 		"body":    "Hello",
 	})
 
-	_, err := tool.Execute(nil, args)
+	_, err := tool.Execute(context.Background(), args)
 	if err == nil {
 		t.Fatal("expected error when SMTP not enabled")
 	}
@@ -448,7 +526,7 @@ func TestSendMessage_SendError(t *testing.T) {
 		"body":    "Hello",
 	})
 
-	_, err := tool.Execute(nil, args)
+	_, err := tool.Execute(context.Background(), args)
 	if err == nil {
 		t.Fatal("expected error for send failure")
 	}
@@ -461,7 +539,9 @@ func TestSendMessage_InvalidJSON(t *testing.T) {
 		&mockSentSaver{},
 	)
 
-	_, err := tool.Execute(nil, json.RawMessage(`{invalid}`))
+	_, err := tool.Execute(
+		context.Background(), json.RawMessage(`{invalid}`),
+	)
 	if err == nil {
 		t.Fatal("expected error for invalid JSON")
 	}

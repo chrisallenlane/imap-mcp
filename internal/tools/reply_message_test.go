@@ -2,6 +2,7 @@ package tools
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -170,7 +171,7 @@ func TestReplyMessage_Reply(t *testing.T) {
 		"body":    "Thanks for your message!",
 	})
 
-	result, err := tool.Execute(nil, args)
+	result, err := tool.Execute(context.Background(), args)
 	if err != nil {
 		t.Fatalf("Execute() error: %v", err)
 	}
@@ -219,7 +220,7 @@ func TestReplyMessage_ReplyAll(t *testing.T) {
 		"body":    "Replying to all!",
 	})
 
-	result, err := tool.Execute(nil, args)
+	result, err := tool.Execute(context.Background(), args)
 	if err != nil {
 		t.Fatalf("Execute() error: %v", err)
 	}
@@ -276,7 +277,7 @@ func TestReplyMessage_Forward(t *testing.T) {
 		"body":    "FYI, see below.",
 	})
 
-	result, err := tool.Execute(nil, args)
+	result, err := tool.Execute(context.Background(), args)
 	if err != nil {
 		t.Fatalf("Execute() error: %v", err)
 	}
@@ -322,7 +323,7 @@ func TestReplyMessage_ForwardRequiresTo(t *testing.T) {
 		"body":    "FYI",
 	})
 
-	_, err := tool.Execute(nil, args)
+	_, err := tool.Execute(context.Background(), args)
 	if err == nil {
 		t.Fatal(
 			"expected error when forward has no To",
@@ -353,7 +354,7 @@ func TestReplyMessage_SubjectPrefixNotDuplicated(t *testing.T) {
 		"body":    "Another reply",
 	})
 
-	_, err := tool.Execute(nil, args)
+	_, err := tool.Execute(context.Background(), args)
 	if err != nil {
 		t.Fatalf("Execute() error: %v", err)
 	}
@@ -380,7 +381,7 @@ func TestReplyMessage_MissingAccount(t *testing.T) {
 		"body":    "test",
 	})
 
-	_, err := tool.Execute(nil, args)
+	_, err := tool.Execute(context.Background(), args)
 	if err == nil {
 		t.Fatal("expected error for missing account")
 	}
@@ -401,7 +402,7 @@ func TestReplyMessage_InvalidMode(t *testing.T) {
 		"body":    "test",
 	})
 
-	_, err := tool.Execute(nil, args)
+	_, err := tool.Execute(context.Background(), args)
 	if err == nil {
 		t.Fatal("expected error for invalid mode")
 	}
@@ -425,7 +426,7 @@ func TestReplyMessage_FetchError(t *testing.T) {
 		"body":    "test",
 	})
 
-	_, err := tool.Execute(nil, args)
+	_, err := tool.Execute(context.Background(), args)
 	if err == nil {
 		t.Fatal("expected error for fetch failure")
 	}
@@ -458,7 +459,7 @@ func TestReplyMessage_SendError(t *testing.T) {
 		"body":    "test",
 	})
 
-	_, err := tool.Execute(nil, args)
+	_, err := tool.Execute(context.Background(), args)
 	if err == nil {
 		t.Fatal("expected error for send failure")
 	}
@@ -494,11 +495,76 @@ func TestReplyMessage_SMTPNotEnabled(t *testing.T) {
 		"body":    "test",
 	})
 
-	_, err := tool.Execute(nil, args)
+	_, err := tool.Execute(context.Background(), args)
 	if err == nil {
 		t.Fatal("expected error when SMTP not enabled")
 	}
 	assertContains(t, err.Error(), "not enabled")
+}
+
+func TestReplyMessage_SaveSent(t *testing.T) {
+	cfg := replyConfig()
+	acct := cfg.Accounts["test"]
+	acct.SaveSent = true
+	cfg.Accounts["test"] = acct
+
+	getter := &mockReplyGetter{
+		messages: []*imapclient.FetchMessageBuffer{
+			sourceMessage(),
+		},
+	}
+	sender := &mockReplySender{config: cfg}
+	saver := &mockReplySentSaver{sentMailbox: "Sent"}
+	tool := NewReplyMessage(getter, sender, saver)
+
+	args, _ := json.Marshal(map[string]interface{}{
+		"account": "test",
+		"mailbox": "INBOX",
+		"uid":     42,
+		"mode":    "reply",
+		"body":    "Thanks!",
+	})
+
+	result, err := tool.Execute(context.Background(), args)
+	if err != nil {
+		t.Fatalf("Execute() error: %v", err)
+	}
+
+	if !saver.appendCalled {
+		t.Error("AppendMessage should have been called")
+	}
+	assertContains(t, result, "Saved to Sent folder")
+}
+
+func TestReplyMessage_SaveSentDisabled(t *testing.T) {
+	getter := &mockReplyGetter{
+		messages: []*imapclient.FetchMessageBuffer{
+			sourceMessage(),
+		},
+	}
+	sender := &mockReplySender{config: replyConfig()}
+	saver := &mockReplySentSaver{sentMailbox: "Sent"}
+	tool := NewReplyMessage(getter, sender, saver)
+
+	args, _ := json.Marshal(map[string]interface{}{
+		"account": "test",
+		"mailbox": "INBOX",
+		"uid":     42,
+		"mode":    "reply",
+		"body":    "Thanks!",
+	})
+
+	result, err := tool.Execute(context.Background(), args)
+	if err != nil {
+		t.Fatalf("Execute() error: %v", err)
+	}
+
+	if saver.appendCalled {
+		t.Error(
+			"AppendMessage should not have been called",
+		)
+	}
+	assertNotContains(t, result, "Saved to Sent folder")
 }
 
 func TestReplyMessage_InvalidJSON(t *testing.T) {
@@ -508,7 +574,9 @@ func TestReplyMessage_InvalidJSON(t *testing.T) {
 		&mockReplySentSaver{},
 	)
 
-	_, err := tool.Execute(nil, json.RawMessage(`{bad}`))
+	_, err := tool.Execute(
+		context.Background(), json.RawMessage(`{bad}`),
+	)
 	if err == nil {
 		t.Fatal("expected error for invalid JSON")
 	}

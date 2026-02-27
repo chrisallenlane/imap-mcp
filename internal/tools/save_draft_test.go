@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -115,7 +116,7 @@ func TestSaveDraft_Success(t *testing.T) {
 		"body":    "Draft body text",
 	})
 
-	result, err := tool.Execute(nil, args)
+	result, err := tool.Execute(context.Background(), args)
 	if err != nil {
 		t.Fatalf("Execute() error: %v", err)
 	}
@@ -156,7 +157,7 @@ func TestSaveDraft_MinimalDraft(t *testing.T) {
 		"account": "test",
 	})
 
-	result, err := tool.Execute(nil, args)
+	result, err := tool.Execute(context.Background(), args)
 	if err != nil {
 		t.Fatalf("Execute() error: %v", err)
 	}
@@ -177,7 +178,7 @@ func TestSaveDraft_MissingAccount(t *testing.T) {
 
 	args, _ := json.Marshal(map[string]interface{}{})
 
-	_, err := tool.Execute(nil, args)
+	_, err := tool.Execute(context.Background(), args)
 	if err == nil {
 		t.Fatal("expected error for missing account")
 	}
@@ -195,7 +196,7 @@ func TestSaveDraft_UnknownAccount(t *testing.T) {
 		"account": "nonexistent",
 	})
 
-	_, err := tool.Execute(nil, args)
+	_, err := tool.Execute(context.Background(), args)
 	if err == nil {
 		t.Fatal("expected error for unknown account")
 	}
@@ -222,7 +223,7 @@ func TestSaveDraft_SMTPNotEnabled(t *testing.T) {
 		"account": "test",
 	})
 
-	_, err := tool.Execute(nil, args)
+	_, err := tool.Execute(context.Background(), args)
 	if err == nil {
 		t.Fatal("expected error when SMTP not enabled")
 	}
@@ -243,7 +244,7 @@ func TestSaveDraft_FindDraftsFails(t *testing.T) {
 		"body":    "test",
 	})
 
-	_, err := tool.Execute(nil, args)
+	_, err := tool.Execute(context.Background(), args)
 	if err == nil {
 		t.Fatal("expected error when Drafts not found")
 	}
@@ -265,7 +266,7 @@ func TestSaveDraft_AppendFails(t *testing.T) {
 		"body":    "test",
 	})
 
-	_, err := tool.Execute(nil, args)
+	_, err := tool.Execute(context.Background(), args)
 	if err == nil {
 		t.Fatal("expected error when append fails")
 	}
@@ -280,7 +281,9 @@ func TestSaveDraft_InvalidJSON(t *testing.T) {
 		&mockDraftSaver{},
 	)
 
-	_, err := tool.Execute(nil, json.RawMessage(`{bad}`))
+	_, err := tool.Execute(
+		context.Background(), json.RawMessage(`{bad}`),
+	)
 	if err == nil {
 		t.Fatal("expected error for invalid JSON")
 	}
