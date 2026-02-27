@@ -3,20 +3,108 @@ makefile := $(realpath $(lastword $(MAKEFILE_LIST)))
 cmd_dir  := ./cmd/imap-mcp
 dist_dir := ./dist
 
+# parallel jobs for build-release (can be overridden)
+JOBS ?= 8
+
 # executables
 GO    := go
+GZIP  := gzip --best
 MKDIR := mkdir -p
+ZIP   := zip -m
 
 # config
 CONFIG ?= $(CURDIR)/config.toml
 
 # build flags
+export CGO_ENABLED := 0
 BUILD_FLAGS := -ldflags="-s -w" -trimpath
+
+# release binaries
+releases :=                              \
+	$(dist_dir)/imap-mcp-darwin-amd64    \
+	$(dist_dir)/imap-mcp-darwin-arm64    \
+	$(dist_dir)/imap-mcp-linux-386       \
+	$(dist_dir)/imap-mcp-linux-amd64     \
+	$(dist_dir)/imap-mcp-linux-arm5      \
+	$(dist_dir)/imap-mcp-linux-arm6      \
+	$(dist_dir)/imap-mcp-linux-arm7      \
+	$(dist_dir)/imap-mcp-linux-arm64     \
+	$(dist_dir)/imap-mcp-netbsd-amd64    \
+	$(dist_dir)/imap-mcp-openbsd-amd64   \
+	$(dist_dir)/imap-mcp-solaris-amd64   \
+	$(dist_dir)/imap-mcp-windows-amd64.exe
 
 ## build: build an executable for your architecture
 .PHONY: build
 build: | clean $(dist_dir) fmt lint vet
 	$(GO) build $(BUILD_FLAGS) -o $(dist_dir)/imap-mcp $(cmd_dir)
+
+## build-release: build release executables
+# Runs prepare once, then builds all binaries in parallel
+# Override jobs with: make build-release JOBS=16
+.PHONY: build-release
+build-release: prepare
+	$(MAKE) -j$(JOBS) $(releases)
+
+# imap-mcp-darwin-amd64
+$(dist_dir)/imap-mcp-darwin-amd64:
+	GOARCH=amd64 GOOS=darwin \
+	$(GO) build $(BUILD_FLAGS) -o $@ $(cmd_dir) && $(GZIP) $@ && chmod -x $@.gz
+
+# imap-mcp-darwin-arm64
+$(dist_dir)/imap-mcp-darwin-arm64:
+	GOARCH=arm64 GOOS=darwin \
+	$(GO) build $(BUILD_FLAGS) -o $@ $(cmd_dir) && $(GZIP) $@ && chmod -x $@.gz
+
+# imap-mcp-linux-386
+$(dist_dir)/imap-mcp-linux-386:
+	GOARCH=386 GOOS=linux \
+	$(GO) build $(BUILD_FLAGS) -o $@ $(cmd_dir) && $(GZIP) $@ && chmod -x $@.gz
+
+# imap-mcp-linux-amd64
+$(dist_dir)/imap-mcp-linux-amd64:
+	GOARCH=amd64 GOOS=linux \
+	$(GO) build $(BUILD_FLAGS) -o $@ $(cmd_dir) && $(GZIP) $@ && chmod -x $@.gz
+
+# imap-mcp-linux-arm5
+$(dist_dir)/imap-mcp-linux-arm5:
+	GOARCH=arm GOOS=linux GOARM=5 \
+	$(GO) build $(BUILD_FLAGS) -o $@ $(cmd_dir) && $(GZIP) $@ && chmod -x $@.gz
+
+# imap-mcp-linux-arm6
+$(dist_dir)/imap-mcp-linux-arm6:
+	GOARCH=arm GOOS=linux GOARM=6 \
+	$(GO) build $(BUILD_FLAGS) -o $@ $(cmd_dir) && $(GZIP) $@ && chmod -x $@.gz
+
+# imap-mcp-linux-arm7
+$(dist_dir)/imap-mcp-linux-arm7:
+	GOARCH=arm GOOS=linux GOARM=7 \
+	$(GO) build $(BUILD_FLAGS) -o $@ $(cmd_dir) && $(GZIP) $@ && chmod -x $@.gz
+
+# imap-mcp-linux-arm64
+$(dist_dir)/imap-mcp-linux-arm64:
+	GOARCH=arm64 GOOS=linux \
+	$(GO) build $(BUILD_FLAGS) -o $@ $(cmd_dir) && $(GZIP) $@ && chmod -x $@.gz
+
+# imap-mcp-netbsd-amd64
+$(dist_dir)/imap-mcp-netbsd-amd64:
+	GOARCH=amd64 GOOS=netbsd \
+	$(GO) build $(BUILD_FLAGS) -o $@ $(cmd_dir) && $(GZIP) $@ && chmod -x $@.gz
+
+# imap-mcp-openbsd-amd64
+$(dist_dir)/imap-mcp-openbsd-amd64:
+	GOARCH=amd64 GOOS=openbsd \
+	$(GO) build $(BUILD_FLAGS) -o $@ $(cmd_dir) && $(GZIP) $@ && chmod -x $@.gz
+
+# imap-mcp-solaris-amd64
+$(dist_dir)/imap-mcp-solaris-amd64:
+	GOARCH=amd64 GOOS=solaris \
+	$(GO) build $(BUILD_FLAGS) -o $@ $(cmd_dir) && $(GZIP) $@ && chmod -x $@.gz
+
+# imap-mcp-windows-amd64
+$(dist_dir)/imap-mcp-windows-amd64.exe:
+	GOARCH=amd64 GOOS=windows \
+	$(GO) build $(BUILD_FLAGS) -o $@ $(cmd_dir) && $(ZIP) $@.zip $@ -j
 
 ## install: build and install imap-mcp on your PATH
 .PHONY: install
@@ -94,6 +182,9 @@ sloc:
 ## check: format, lint, vet, and test
 .PHONY: check
 check: | fmt lint vet test
+
+.PHONY: prepare
+prepare: | clean $(dist_dir) fmt lint vet test
 
 # ./dist
 $(dist_dir):
