@@ -150,6 +150,114 @@ func parseBody(raw []byte) (parsedBody, error) {
 	return parsedBody{attachments: attachments}, nil
 }
 
+// extractedAttachment holds the content and metadata of a
+// single extracted attachment.
+type extractedAttachment struct {
+	filename  string
+	mediaType string
+	data      []byte
+}
+
+// extractAttachment walks the MIME structure of raw RFC 2822
+// message bytes and returns the Nth attachment (1-indexed).
+func extractAttachment(
+	raw []byte,
+	index int,
+) (extractedAttachment, error) {
+	entity, err := message.Read(bytes.NewReader(raw))
+	if err != nil && !message.IsUnknownCharset(err) {
+		return extractedAttachment{}, fmt.Errorf(
+			"failed to read message: %w",
+			err,
+		)
+	}
+
+	var count int
+	var result extractedAttachment
+	var found bool
+
+	walkErr := entity.Walk(
+		func(
+			path []int,
+			part *message.Entity,
+			err error,
+		) error {
+			if err != nil || found {
+				return nil
+			}
+
+			mediaType, ctParams, _ := part.Header.ContentType()
+			disp, dispParams, _ := part.Header.ContentDisposition()
+
+			isAttachment := disp == "attachment" ||
+				(path != nil &&
+					!strings.HasPrefix(
+						mediaType,
+						"text/",
+					) &&
+					!strings.HasPrefix(
+						mediaType,
+						"multipart/",
+					))
+
+			if !isAttachment {
+				return nil
+			}
+
+			count++
+			if count != index {
+				// drain the body so the walker
+				// can proceed
+				io.Copy(io.Discard, part.Body)
+				return nil
+			}
+
+			data, readErr := io.ReadAll(part.Body)
+			if readErr != nil {
+				return fmt.Errorf(
+					"failed to read attachment: %w",
+					readErr,
+				)
+			}
+
+			filename := dispParams["filename"]
+			if filename == "" {
+				filename = ctParams["name"]
+			}
+
+			result = extractedAttachment{
+				filename:  filename,
+				mediaType: mediaType,
+				data:      data,
+			}
+			found = true
+			return nil
+		},
+	)
+	if walkErr != nil {
+		return extractedAttachment{}, fmt.Errorf(
+			"failed to walk message parts: %w",
+			walkErr,
+		)
+	}
+
+	if !found {
+		if count == 0 {
+			return extractedAttachment{}, fmt.Errorf(
+				"message has no attachments",
+			)
+		}
+		return extractedAttachment{}, fmt.Errorf(
+			"attachment %d not found; "+
+				"message has %d attachments",
+			index,
+			count,
+		)
+	}
+
+	return result, nil
+}
+
 // readBodyPart reads a MIME body part up to maxBodySize,
 // appending a truncation notice if the limit is exceeded.
 func readBodyPart(r io.Reader) (string, error) {

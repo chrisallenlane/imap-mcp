@@ -57,6 +57,7 @@ func (s *Server) registerTools() {
 	)
 	s.tools["delete_messages"] = tools.NewDeleteMessages(s.imap)
 	s.tools["create_mailbox"] = tools.NewCreateMailbox(s.imap)
+	s.tools["get_attachment"] = tools.NewGetAttachment(s.imap)
 	s.tools["delete_mailbox"] = tools.NewDeleteMailbox(s.imap)
 }
 
