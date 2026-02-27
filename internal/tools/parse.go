@@ -22,6 +22,32 @@ type attachment struct {
 	mediaType string
 }
 
+// isAttachmentPart reports whether a MIME part should be
+// treated as an attachment based on its disposition, path,
+// and media type.
+func isAttachmentPart(
+	disp string,
+	path []int,
+	mediaType string,
+) bool {
+	return disp == "attachment" ||
+		(path != nil &&
+			!strings.HasPrefix(mediaType, "text/") &&
+			!strings.HasPrefix(mediaType, "multipart/"))
+}
+
+// resolveFilename extracts the best available filename from
+// MIME content-disposition and content-type parameters.
+// Returns empty string if no filename is found.
+func resolveFilename(
+	dispParams, ctParams map[string]string,
+) string {
+	if f := dispParams["filename"]; f != "" {
+		return f
+	}
+	return ctParams["name"]
+}
+
 // parsedBody holds the result of parsing a message body.
 type parsedBody struct {
 	text        string
@@ -83,22 +109,10 @@ func parseBody(raw []byte) (parsedBody, error) {
 				}
 			}
 
-			isAttachment := disp == "attachment" ||
-				(path != nil &&
-					!strings.HasPrefix(
-						mediaType,
-						"text/",
-					) &&
-					!strings.HasPrefix(
-						mediaType,
-						"multipart/",
-					))
-
-			if isAttachment {
-				filename := dispParams["filename"]
-				if filename == "" {
-					filename = ctParams["name"]
-				}
+			if isAttachmentPart(disp, path, mediaType) {
+				filename := resolveFilename(
+					dispParams, ctParams,
+				)
 				if filename == "" {
 					filename = "unnamed"
 				}
@@ -189,18 +203,7 @@ func extractAttachment(
 			mediaType, ctParams, _ := part.Header.ContentType()
 			disp, dispParams, _ := part.Header.ContentDisposition()
 
-			isAttachment := disp == "attachment" ||
-				(path != nil &&
-					!strings.HasPrefix(
-						mediaType,
-						"text/",
-					) &&
-					!strings.HasPrefix(
-						mediaType,
-						"multipart/",
-					))
-
-			if !isAttachment {
+			if !isAttachmentPart(disp, path, mediaType) {
 				return nil
 			}
 
@@ -220,10 +223,9 @@ func extractAttachment(
 				)
 			}
 
-			filename := dispParams["filename"]
-			if filename == "" {
-				filename = ctParams["name"]
-			}
+			filename := resolveFilename(
+				dispParams, ctParams,
+			)
 
 			result = extractedAttachment{
 				filename:  filename,
