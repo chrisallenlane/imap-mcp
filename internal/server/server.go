@@ -12,6 +12,7 @@ import (
 	"time"
 
 	imapmanager "github.com/chrisallenlane/imap-mcp/internal/imap"
+	smtpmanager "github.com/chrisallenlane/imap-mcp/internal/smtp"
 	"github.com/chrisallenlane/imap-mcp/internal/tools"
 )
 
@@ -26,13 +27,18 @@ const (
 // Server represents an MCP server
 type Server struct {
 	imap  *imapmanager.ConnectionManager
+	smtp  *smtpmanager.Manager
 	tools map[string]tools.Tool
 }
 
 // New creates a new MCP server
-func New(mgr *imapmanager.ConnectionManager) *Server {
+func New(
+	mgr *imapmanager.ConnectionManager,
+	smtp *smtpmanager.Manager,
+) *Server {
 	s := &Server{
 		imap:  mgr,
+		smtp:  smtp,
 		tools: make(map[string]tools.Tool),
 	}
 
@@ -59,6 +65,16 @@ func (s *Server) registerTools() {
 	s.tools["create_mailbox"] = tools.NewCreateMailbox(s.imap)
 	s.tools["get_attachment"] = tools.NewGetAttachment(s.imap)
 	s.tools["delete_mailbox"] = tools.NewDeleteMailbox(s.imap)
+
+	// SMTP tools — only registered when at least one
+	// account has smtp_enabled = true.
+	if s.smtp != nil &&
+		s.smtp.Config().HasSMTPEnabled() {
+		s.tools["send_message"] = tools.NewSendMessage(
+			s.smtp,
+			s.imap,
+		)
+	}
 }
 
 // Run starts the MCP server and processes requests

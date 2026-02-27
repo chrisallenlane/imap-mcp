@@ -11,6 +11,7 @@ import (
 	"github.com/chrisallenlane/imap-mcp/internal/config"
 	imapmanager "github.com/chrisallenlane/imap-mcp/internal/imap"
 	"github.com/chrisallenlane/imap-mcp/internal/server"
+	smtpmanager "github.com/chrisallenlane/imap-mcp/internal/smtp"
 )
 
 func main() {
@@ -46,7 +47,9 @@ func main() {
 	mgr := imapmanager.NewConnectionManager(cfg)
 	defer mgr.Close()
 
-	s := server.New(mgr)
+	smtp := smtpmanager.NewManager(cfg)
+
+	s := server.New(mgr, smtp)
 
 	if err := s.Run(
 		context.Background(),
