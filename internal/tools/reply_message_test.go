@@ -544,6 +544,54 @@ func TestReplyMessage_SMTPNotEnabled(t *testing.T) {
 	assertContains(t, err.Error(), "not enabled")
 }
 
+func TestReplyMessage_SMTPNotEnabledMixedAccounts(t *testing.T) {
+	cfg := &config.Config{
+		Accounts: map[string]config.Account{
+			"smtp-on": {
+				Host:        "imap.example.com",
+				Port:        993,
+				Username:    "user@example.com",
+				Password:    "pass",
+				SMTPEnabled: true,
+				SMTPHost:    "smtp.example.com",
+				SMTPPort:    587,
+			},
+			"smtp-off": {
+				Host:     "imap.example.com",
+				Port:     993,
+				Username: "other@example.com",
+				Password: "pass",
+			},
+		},
+	}
+	tool := NewReplyMessage(
+		&mockReplyGetter{
+			messages: []*imapclient.FetchMessageBuffer{
+				sourceMessage(),
+			},
+		},
+		&mockReplySender{config: cfg},
+		&mockReplySentSaver{},
+	)
+
+	args, _ := json.Marshal(map[string]interface{}{
+		"account": "smtp-off",
+		"mailbox": "INBOX",
+		"uid":     42,
+		"mode":    "reply",
+		"body":    "test",
+	})
+
+	_, err := tool.Execute(context.Background(), args)
+	if err == nil {
+		t.Fatal(
+			"expected error for SMTP-disabled account " +
+				"in mixed config",
+		)
+	}
+	assertContains(t, err.Error(), "not enabled")
+}
+
 func TestReplyMessage_SaveSent(t *testing.T) {
 	cfg := replyConfig()
 	acct := cfg.Accounts["test"]

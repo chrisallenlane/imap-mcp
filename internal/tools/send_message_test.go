@@ -500,6 +500,48 @@ func TestSendMessage_SMTPNotEnabled(t *testing.T) {
 	assertContains(t, err.Error(), "not enabled")
 }
 
+func TestSendMessage_SMTPNotEnabledMixedAccounts(t *testing.T) {
+	cfg := &config.Config{
+		Accounts: map[string]config.Account{
+			"smtp-on": {
+				Host:        "imap.example.com",
+				Port:        993,
+				Username:    "user@example.com",
+				Password:    "pass",
+				SMTPEnabled: true,
+				SMTPHost:    "smtp.example.com",
+				SMTPPort:    587,
+			},
+			"smtp-off": {
+				Host:     "imap.example.com",
+				Port:     993,
+				Username: "other@example.com",
+				Password: "pass",
+			},
+		},
+	}
+	tool := NewSendMessage(
+		&mockEmailSender{config: cfg},
+		&mockSentSaver{},
+	)
+
+	args, _ := json.Marshal(map[string]interface{}{
+		"account": "smtp-off",
+		"to":      []string{"to@example.com"},
+		"subject": "Test",
+		"body":    "Hello",
+	})
+
+	_, err := tool.Execute(context.Background(), args)
+	if err == nil {
+		t.Fatal(
+			"expected error for SMTP-disabled account " +
+				"in mixed config",
+		)
+	}
+	assertContains(t, err.Error(), "not enabled")
+}
+
 func TestSendMessage_SendError(t *testing.T) {
 	sender := &mockEmailSender{
 		config:  smtpEnabledConfig(),
