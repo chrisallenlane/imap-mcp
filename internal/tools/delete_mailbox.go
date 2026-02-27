@@ -9,19 +9,8 @@ import (
 	imap "github.com/emersion/go-imap/v2"
 )
 
-// specialUseAttrs is the set of IMAP special-use attributes
-// that protect a mailbox from deletion.
-var specialUseAttrs = map[imap.MailboxAttr]bool{
-	imap.MailboxAttrSent:    true,
-	imap.MailboxAttrTrash:   true,
-	imap.MailboxAttrDrafts:  true,
-	imap.MailboxAttrJunk:    true,
-	imap.MailboxAttrArchive: true,
-	imap.MailboxAttrFlagged: true,
-}
-
 // mailboxDeleter is a narrow interface for deleting mailboxes.
-// *imapmanager.Manager satisfies this implicitly.
+// *imapmanager.ConnectionManager satisfies this implicitly.
 type mailboxDeleter interface {
 	DeleteMailbox(account, name string) error
 	ListMailboxes(
@@ -112,7 +101,7 @@ func (t *DeleteMailbox) Execute(
 			continue
 		}
 		for _, attr := range mb.Attrs {
-			if specialUseAttrs[attr] {
+			if specialUseLabels[attr] != "" {
 				return "", fmt.Errorf(
 					"cannot delete mailbox %q:"+
 						" it has special-use"+

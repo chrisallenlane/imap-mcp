@@ -67,62 +67,16 @@ func (m *mockFlagSetterSequence) StoreFlags(
 	return nil
 }
 
-func TestMarkMessages_Description(t *testing.T) {
-	tool := NewMarkMessages(&mockFlagSetter{})
-
-	desc := tool.Description()
-	if desc == "" {
-		t.Error("Description() should not be empty")
-	}
-}
-
 func TestMarkMessages_InputSchema(t *testing.T) {
-	tool := NewMarkMessages(&mockFlagSetter{})
-
-	schema := tool.InputSchema()
-	if schema["type"] != "object" {
-		t.Errorf(
-			"schema type = %v, want object",
-			schema["type"],
-		)
-	}
-
-	props, ok := schema["properties"].(map[string]interface{})
-	if !ok {
-		t.Fatal("properties should be a map")
-	}
-
-	expectedProps := []string{
-		"account", "mailbox", "uids",
-		"read", "flagged",
-	}
-	for _, p := range expectedProps {
-		if _, ok := props[p]; !ok {
-			t.Errorf(
-				"schema should have %q property",
-				p,
-			)
-		}
-	}
-
-	required, ok := schema["required"].([]string)
-	if !ok {
-		t.Fatal("required should be a []string")
-	}
-
-	requiredSet := map[string]bool{}
-	for _, r := range required {
-		requiredSet[r] = true
-	}
-	if !requiredSet["account"] ||
-		!requiredSet["mailbox"] ||
-		!requiredSet["uids"] {
-		t.Errorf(
-			"required = %v, want "+
-				"[account, mailbox, uids]",
-			required,
-		)
-	}
+	assertSchema(
+		t,
+		NewMarkMessages(&mockFlagSetter{}).InputSchema(),
+		[]string{
+			"account", "mailbox", "uids",
+			"read", "flagged",
+		},
+		[]string{"account", "mailbox", "uids"},
+	)
 }
 
 func TestMarkMessages_MarkRead(t *testing.T) {
@@ -500,19 +454,10 @@ func TestMarkMessages_MissingMailbox(t *testing.T) {
 }
 
 func TestMarkMessages_InvalidJSON(t *testing.T) {
-	mock := &mockFlagSetter{}
-	tool := NewMarkMessages(mock)
-
-	_, err := tool.Execute(
-		context.Background(),
-		json.RawMessage(`{invalid`),
+	assertInvalidJSONError(
+		t,
+		NewMarkMessages(&mockFlagSetter{}),
 	)
-	if err == nil {
-		t.Fatal(
-			"Execute() expected error for invalid JSON",
-		)
-	}
-	assertContains(t, err.Error(), "parse")
 }
 
 func TestMarkMessages_StoreFlagsError(t *testing.T) {

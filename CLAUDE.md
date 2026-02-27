@@ -27,15 +27,22 @@ imap-mcp/
 │   │   ├── config_test.go       # Config parsing and validation tests
 │   │   └── config_fuzz_test.go  # Fuzz tests for config validation
 │   ├── imap/                    # IMAP connection manager
-│   │   ├── manager.go           # Lazy connection pooling per account
-│   │   └── manager_test.go      # Connection manager tests
+│   │   ├── manager.go           # ConnectionManager struct, connection lifecycle (GetClient, Close, connect, selectMailbox)
+│   │   ├── manager_test.go      # Connection lifecycle tests + shared test helpers
+│   │   ├── retry.go             # Auto-reconnect retry logic (withRetryResult, withRetry)
+│   │   ├── retry_test.go        # Retry logic tests
+│   │   ├── message.go           # Message IMAP operations (Fetch, Search, Store, Move, Copy, Expunge)
+│   │   ├── message_test.go      # Message operation tests
+│   │   ├── mailbox.go           # Mailbox IMAP operations (List, Examine, Status, Create, Delete)
+│   │   └── mailbox_test.go      # Mailbox operation tests
 │   ├── server/                  # MCP server implementation
 │   │   ├── server.go            # JSON-RPC server, request routing
 │   │   ├── server_test.go       # Protocol tests
+│   │   ├── server_fuzz_test.go  # Fuzz tests for JSON-RPC handling
 │   │   └── types.go             # JSON-RPC request/response types
 │   └── tools/                   # MCP tool implementations
 │       ├── tool.go              # Tool interface definition
-│       ├── format.go            # Shared formatting helpers (formatFlags, formatUIDs, toIMAPUIDs, etc.)
+│       ├── format.go            # Shared formatting helpers (formatFlags, formatMessage, formatUIDs, toIMAPUIDs, etc.)
 │       ├── format_test.go       # Format helper tests
 │       ├── format_fuzz_test.go  # Fuzz tests for format helpers
 │       ├── html.go              # HTML-to-text conversion (HTMLToText)
@@ -49,20 +56,17 @@ imap-mcp/
 │       ├── list_messages.go      # list_messages tool
 │       ├── list_messages_test.go
 │       ├── list_messages_fuzz_test.go
-│       ├── get_message.go        # get_message tool
+│       ├── get_message.go        # get_message tool (presentation/formatting)
 │       ├── get_message_test.go
 │       ├── get_message_fuzz_test.go
+│       ├── parse.go              # MIME body parsing (parseBody, readBodyPart, attachment)
 │       ├── search_messages.go    # search_messages tool
 │       ├── search_messages_test.go
 │       ├── search_messages_fuzz_test.go
 │       ├── mark_messages.go      # mark_messages tool
 │       ├── mark_messages_test.go
-│       ├── transfer_messages.go  # Shared transferTool implementation for move/copy
+│       ├── transfer_messages.go  # Shared transferTool implementation + NewMoveMessages/NewCopyMessages constructors
 │       ├── transfer_messages_test.go
-│       ├── move_messages.go      # move_messages narrow interface + constructor (delegates to transferTool)
-│       ├── move_messages_test.go
-│       ├── copy_messages.go      # copy_messages narrow interface + constructor (delegates to transferTool)
-│       ├── copy_messages_test.go
 │       ├── delete_messages.go    # delete_messages tool
 │       ├── delete_messages_test.go
 │       ├── create_mailbox.go     # create_mailbox tool
@@ -128,7 +132,7 @@ The config file path is passed via the `--config` flag. `config.toml` is gitigno
 Manages persistent IMAP connections per account with lazy initialization and transparent auto-reconnect:
 
 **Connection & Config:**
-- **`NewManager(cfg)`** - Creates a manager from config
+- **`NewConnectionManager(cfg)`** - Creates a connection manager from config
 - **`GetClient(accountName)`** - Returns an IMAP client, connecting on first use. Detects dead cached connections (via `imapclient.Client.Closed()` channel) and reconnects automatically.
 - **`IsConnected(accountName)`** - Checks if an account has a live connection (returns false for dead cached connections)
 - **`Config()`** - Returns the manager's config
@@ -149,14 +153,12 @@ Reconnections are logged to stderr via `log.Printf`. The identity check `m.conns
 - **`ListMailboxes(accountName)`** - Returns all mailboxes for an account (connects lazily if needed, issues IMAP LIST command)
 - **`ExamineMailbox(account, mailbox)`** - Selects a mailbox in read-only mode (IMAP EXAMINE) and returns metadata including message count
 - **`FetchMessages(account, seqSet, options)`** - Fetches message data (envelopes, flags, UIDs, etc.) for a given sequence set
-- **`FetchMessageByUID(account, mailbox, uid, options)`** - Fetches message data for a single message by UID (selects mailbox in read-only mode, then fetches via UID set)
 - **`SearchMessages(account, mailbox, criteria)`** - Selects a mailbox in read-only mode and runs an IMAP UID SEARCH with the given criteria, returning matching UIDs
 - **`FetchMessagesByUID(account, mailbox, uids, options)`** - Fetches message data for multiple UIDs in a mailbox (selects mailbox in read-only mode, then fetches via UID set)
 - **`MailboxStatus(account, mailbox)`** - Issues an IMAP STATUS command for a mailbox, returning message count and unseen count
 - **`FindTrashMailbox(account)`** - Scans mailboxes for the `\Trash` special-use attribute and returns its name
 
 **Write Operations (read-write mailbox selection):**
-- **`SelectMailbox(account, mailbox)`** - Opens a mailbox in read-write mode (IMAP SELECT) and returns metadata
 - **`StoreFlags(account, mailbox, uids, op, flags)`** - Sets or clears flags on messages identified by UIDs (selects mailbox read-write, then issues STORE with silent mode)
 - **`MoveMessages(account, mailbox, uids, destMailbox)`** - Moves messages identified by UIDs from one mailbox to another (IMAP MOVE). Delegates to `transferMessages`.
 - **`CopyMessages(account, mailbox, uids, destMailbox)`** - Copies messages identified by UIDs from one mailbox to another (IMAP COPY). Delegates to `transferMessages`.
@@ -164,10 +166,11 @@ Reconnections are logged to stderr via `log.Printf`. The identity check `m.conns
 - **`CreateMailbox(account, name)`** - Creates a new mailbox on the server (IMAP CREATE)
 - **`DeleteMailbox(account, name)`** - Deletes a mailbox from the server (IMAP DELETE)
 
-**Internal Helpers:**
+**Internal Helpers (in `manager.go`):**
 - **`selectMailbox(client, mailbox, readOnly)`** - Selects a mailbox in read-only or read-write mode and returns metadata. Used by both read and write operations.
+
+**Internal Helpers (in `message.go`):**
 - **`transferMessages(account, mailbox, uids, destMailbox, verb, op)`** - Shared helper for move/copy operations. Validates UIDs, selects the mailbox read-write, and executes the transfer operation with retry.
-- **`validateUIDs(uids)`** - Returns an error if the UID slice is empty. Used by `StoreFlags`, `transferMessages`, and `ExpungeMessages`.
 
 Connections are thread-safe (protected by `sync.Mutex`). TLS vs insecure connections are selected based on the account's `tls` config field. Dead connections are detected and replaced transparently — callers never need to handle reconnection.
 
@@ -267,7 +270,7 @@ make clean
 
 ### 1. Create the tool file in `internal/tools/`
 
-Define a narrow interface for the Manager methods the tool needs, then depend on that interface (not the concrete Manager). This enables lightweight mock-based testing.
+Define a narrow interface for the ConnectionManager methods the tool needs, then depend on that interface (not the concrete ConnectionManager). This enables lightweight mock-based testing.
 
 ```go
 package tools
@@ -278,7 +281,7 @@ import (
     "fmt"
 )
 
-// narrow interface satisfied by *imapmanager.Manager
+// narrow interface satisfied by *imapmanager.ConnectionManager
 type myDoer interface {
     DoSomething(account string) (string, error)
 }
@@ -367,10 +370,12 @@ Every new tool should have:
 - Tests run in `make check`
 
 ### Code Organization
-- One tool per file, except `move_messages` and `copy_messages` which share a `transferTool` implementation in `transfer_messages.go`
+- One tool per file, except `move_messages` and `copy_messages` which share a `transferTool` implementation (and their constructors) in `transfer_messages.go`
 - Tool interface defined in `tool.go`
-- Shared formatting helpers (e.g., `formatFlags`, `formatUIDs`, `toIMAPUIDs`, `formatFlagNames`, `envelopeDate`) live in `format.go`
+- MIME body parsing separated into `parse.go` (parsing concern) while `get_message.go` handles presentation
+- Shared formatting helpers (e.g., `formatFlags`, `formatMessage`, `formatUIDs`, `toIMAPUIDs`, `formatFlagNames`, `envelopeDate`) live in `format.go`
 - Shared test helpers (e.g., `assertContains`) live in `helpers_test.go`
+- The `internal/imap/` package is organized by domain noun: `manager.go` (connection lifecycle + shared helpers), `message.go` (message operations), `mailbox.go` (mailbox operations), `retry.go` (reconnect logic)
 
 ## Current Tools
 
@@ -431,14 +436,14 @@ if len(items) == 0 {
 - Provide defaults for missing fields
 
 ### Narrow Interfaces for Testability
-Tools define narrow interfaces for the Manager methods they need (e.g., `mailboxLister` in `list_mailboxes.go`). The concrete `*imapmanager.Manager` satisfies these implicitly. Tests provide lightweight mock implementations of these interfaces instead of mocking the full Manager. This pattern should be followed when adding new tools.
+Tools define narrow interfaces for the ConnectionManager methods they need (e.g., `mailboxLister` in `list_mailboxes.go`). The concrete `*imapmanager.ConnectionManager` satisfies these implicitly. Tests provide lightweight mock implementations of these interfaces instead of mocking the full ConnectionManager. This pattern should be followed when adding new tools.
 
 ### IMAP Connection Lifecycle
 - Connections are established lazily on first `GetClient()` call
 - Connections are pooled and reused across tool calls
 - Dead connections are detected (via `Closed()` channel) and replaced transparently
 - All operations retry once on connection death before returning an error
-- `Manager.Close()` is called via `defer` in `main.go`
+- `ConnectionManager.Close()` is called via `defer` in `main.go`
 
 ## Dependencies
 

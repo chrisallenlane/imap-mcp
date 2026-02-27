@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -18,7 +18,7 @@ const maxSearchResults = 100
 
 // messageSearcher is a narrow interface for searching
 // messages and fetching results by UID.
-// *imapmanager.Manager satisfies this implicitly.
+// *imapmanager.ConnectionManager satisfies this implicitly.
 type messageSearcher interface {
 	SearchMessages(
 		account, mailbox string,
@@ -260,26 +260,33 @@ func buildCriteria(
 		criteria.Body = append(criteria.Body, body)
 	}
 
-	if since != "" {
-		t, err := time.Parse("2006-01-02", since)
+	parseDate := func(
+		name, value string,
+	) (time.Time, error) {
+		t, err := time.Parse("2006-01-02", value)
 		if err != nil {
-			return nil, fmt.Errorf(
-				"invalid since date %q: "+
+			return time.Time{}, fmt.Errorf(
+				"invalid %s date %q: "+
 					"expected YYYY-MM-DD",
-				since,
+				name,
+				value,
 			)
+		}
+		return t, nil
+	}
+
+	if since != "" {
+		t, err := parseDate("since", since)
+		if err != nil {
+			return nil, err
 		}
 		criteria.Since = t
 	}
 
 	if before != "" {
-		t, err := time.Parse("2006-01-02", before)
+		t, err := parseDate("before", before)
 		if err != nil {
-			return nil, fmt.Errorf(
-				"invalid before date %q: "+
-					"expected YYYY-MM-DD",
-				before,
-			)
+			return nil, err
 		}
 		criteria.Before = t
 	}
@@ -318,41 +325,44 @@ func formatSearchResults(
 	capped bool,
 ) string {
 	// Sort newest first by envelope date.
-	sort.Slice(messages, func(i, j int) bool {
-		di := envelopeDate(messages[i])
-		dj := envelopeDate(messages[j])
-		return di.After(dj)
-	})
+	slices.SortFunc(
+		messages,
+		func(
+			a, b *imapclient.FetchMessageBuffer,
+		) int {
+			return envelopeDate(b).Compare(
+				envelopeDate(a),
+			)
+		},
+	)
 
 	matchWord := "matches"
 	if totalMatches == 1 {
 		matchWord = "match"
 	}
 
-	var b strings.Builder
-
+	info := fmt.Sprintf(
+		"%d %s, showing all",
+		totalMatches,
+		matchWord,
+	)
 	if capped {
-		fmt.Fprintf(
-			&b,
-			"Search results in %s/%s "+
-				"(showing %d of %d %s):\n",
-			account,
-			mailbox,
+		info = fmt.Sprintf(
+			"showing %d of %d %s",
 			maxSearchResults,
 			totalMatches,
 			matchWord,
 		)
-	} else {
-		fmt.Fprintf(
-			&b,
-			"Search results in %s/%s "+
-				"(%d %s, showing all):\n",
-			account,
-			mailbox,
-			totalMatches,
-			matchWord,
-		)
 	}
+
+	var b strings.Builder
+	fmt.Fprintf(
+		&b,
+		"Search results in %s/%s (%s):\n",
+		account,
+		mailbox,
+		info,
+	)
 
 	for _, msg := range messages {
 		b.WriteString("\n")

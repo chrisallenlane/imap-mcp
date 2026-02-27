@@ -7,7 +7,7 @@ import (
 )
 
 // mailboxCreator is a narrow interface for creating mailboxes.
-// *imapmanager.Manager satisfies this implicitly.
+// *imapmanager.ConnectionManager satisfies this implicitly.
 type mailboxCreator interface {
 	CreateMailbox(account, name string) error
 }

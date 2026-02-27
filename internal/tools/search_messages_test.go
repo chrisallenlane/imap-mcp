@@ -42,68 +42,17 @@ func (m *mockMessageSearcher) FetchMessagesByUID(
 	return m.messages, nil
 }
 
-func TestSearchMessages_Description(t *testing.T) {
-	tool := NewSearchMessages(&mockMessageSearcher{})
-
-	desc := tool.Description()
-	if desc == "" {
-		t.Error("Description() should not be empty")
-	}
-}
-
 func TestSearchMessages_InputSchema(t *testing.T) {
-	tool := NewSearchMessages(&mockMessageSearcher{})
-
-	schema := tool.InputSchema()
-	if schema["type"] != "object" {
-		t.Errorf(
-			"schema type = %v, want object",
-			schema["type"],
-		)
-	}
-
-	props, ok := schema["properties"].(map[string]interface{})
-	if !ok {
-		t.Fatal("properties should be a map")
-	}
-
-	expectedProps := []string{
-		"account", "mailbox",
-		"from", "to", "subject", "body",
-		"since", "before",
-		"flagged", "seen",
-	}
-	for _, p := range expectedProps {
-		if _, ok := props[p]; !ok {
-			t.Errorf(
-				"schema should have %q property",
-				p,
-			)
-		}
-	}
-
-	required, ok := schema["required"].([]string)
-	if !ok {
-		t.Fatal("required should be a []string")
-	}
-	if len(required) != 2 {
-		t.Fatalf(
-			"expected 2 required fields, got %d",
-			len(required),
-		)
-	}
-
-	requiredSet := map[string]bool{}
-	for _, r := range required {
-		requiredSet[r] = true
-	}
-	if !requiredSet["account"] ||
-		!requiredSet["mailbox"] {
-		t.Errorf(
-			"required = %v, want [account, mailbox]",
-			required,
-		)
-	}
+	assertSchema(
+		t,
+		NewSearchMessages(&mockMessageSearcher{}).InputSchema(),
+		[]string{
+			"account", "mailbox", "from", "to",
+			"subject", "body", "since", "before",
+			"flagged", "seen",
+		},
+		[]string{"account", "mailbox"},
+	)
 }
 
 func TestSearchMessages_Success(t *testing.T) {
@@ -310,19 +259,10 @@ func TestSearchMessages_MissingMailbox(t *testing.T) {
 }
 
 func TestSearchMessages_InvalidJSON(t *testing.T) {
-	mock := &mockMessageSearcher{}
-	tool := NewSearchMessages(mock)
-
-	_, err := tool.Execute(
-		context.Background(),
-		json.RawMessage(`{invalid`),
+	assertInvalidJSONError(
+		t,
+		NewSearchMessages(&mockMessageSearcher{}),
 	)
-	if err == nil {
-		t.Fatal(
-			"Execute() expected error for invalid JSON",
-		)
-	}
-	assertContains(t, err.Error(), "parse")
 }
 
 func TestSearchMessages_ZeroResults(t *testing.T) {

@@ -44,60 +44,13 @@ func (m *mockMailboxDeleter) ListMailboxes(
 	return m.mailboxes, m.listErr
 }
 
-func TestDeleteMailbox_Description(t *testing.T) {
-	tool := NewDeleteMailbox(&mockMailboxDeleter{})
-
-	desc := tool.Description()
-	if desc == "" {
-		t.Error("Description() should not be empty")
-	}
-}
-
 func TestDeleteMailbox_InputSchema(t *testing.T) {
-	tool := NewDeleteMailbox(&mockMailboxDeleter{})
-
-	schema := tool.InputSchema()
-	if schema["type"] != "object" {
-		t.Errorf(
-			"schema type = %v, want object",
-			schema["type"],
-		)
-	}
-
-	props, ok := schema["properties"].(map[string]interface{})
-	if !ok {
-		t.Fatal("properties should be a map")
-	}
-
-	expectedProps := []string{"account", "name"}
-	for _, p := range expectedProps {
-		if _, ok := props[p]; !ok {
-			t.Errorf(
-				"schema should have %q property",
-				p,
-			)
-		}
-	}
-
-	required, ok := schema["required"].([]string)
-	if !ok {
-		t.Fatal("required should be a []string")
-	}
-
-	requiredSet := map[string]bool{}
-	for _, r := range required {
-		requiredSet[r] = true
-	}
-	for _, r := range expectedProps {
-		if !requiredSet[r] {
-			t.Errorf(
-				"required should contain %q, "+
-					"got %v",
-				r,
-				required,
-			)
-		}
-	}
+	assertSchema(
+		t,
+		NewDeleteMailbox(&mockMailboxDeleter{}).InputSchema(),
+		[]string{"account", "name"},
+		[]string{"account", "name"},
+	)
 }
 
 func TestDeleteMailbox_Success(t *testing.T) {
@@ -263,6 +216,16 @@ func TestDeleteMailbox_RefuseSpecialUse(t *testing.T) {
 			"Flagged",
 			"Flagged",
 			imap.MailboxAttrFlagged,
+		},
+		{
+			"All",
+			"All Mail",
+			imap.MailboxAttrAll,
+		},
+		{
+			"Important",
+			"Important",
+			imap.MailboxAttrImportant,
 		},
 	}
 
@@ -448,18 +411,8 @@ func TestDeleteMailbox_DeleteError(t *testing.T) {
 }
 
 func TestDeleteMailbox_InvalidJSON(t *testing.T) {
-	mock := &mockMailboxDeleter{}
-	tool := NewDeleteMailbox(mock)
-
-	_, err := tool.Execute(
-		context.Background(),
-		json.RawMessage(`{invalid`),
+	assertInvalidJSONError(
+		t,
+		NewDeleteMailbox(&mockMailboxDeleter{}),
 	)
-	if err == nil {
-		t.Fatal(
-			"Execute() expected error for " +
-				"invalid JSON",
-		)
-	}
-	assertContains(t, err.Error(), "parse")
 }

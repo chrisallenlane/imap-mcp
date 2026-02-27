@@ -2,6 +2,7 @@ package tools
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 
 	"golang.org/x/net/html/atom"
@@ -120,13 +121,11 @@ func pushChildrenReverse(
 	stack *[]*nethtml.Node,
 	n *nethtml.Node,
 ) {
-	var children []*nethtml.Node
+	start := len(*stack)
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		children = append(children, c)
+		*stack = append(*stack, c)
 	}
-	for i := len(children) - 1; i >= 0; i-- {
-		*stack = append(*stack, children[i])
-	}
+	slices.Reverse((*stack)[start:])
 }
 
 // walkAnchor handles <a> elements, rendering them as

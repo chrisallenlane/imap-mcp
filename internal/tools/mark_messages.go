@@ -11,7 +11,7 @@ import (
 
 // messageFlagSetter is a narrow interface for storing flags
 // on messages.
-// *imapmanager.Manager satisfies this implicitly.
+// *imapmanager.ConnectionManager satisfies this implicitly.
 type messageFlagSetter interface {
 	StoreFlags(
 		account, mailbox string,

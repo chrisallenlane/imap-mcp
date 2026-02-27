@@ -43,7 +43,7 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	mgr := imapmanager.NewManager(cfg)
+	mgr := imapmanager.NewConnectionManager(cfg)
 	defer mgr.Close()
 
 	s := server.New(mgr)

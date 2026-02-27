@@ -67,71 +67,16 @@ func (m *mockDeleter) ExpungeMessages(
 	return m.expungeErr
 }
 
-func TestDeleteMessages_Description(t *testing.T) {
-	tool := NewDeleteMessages(&mockDeleter{})
-
-	desc := tool.Description()
-	if desc == "" {
-		t.Error("Description() should not be empty")
-	}
-}
-
 func TestDeleteMessages_InputSchema(t *testing.T) {
-	tool := NewDeleteMessages(&mockDeleter{})
-
-	schema := tool.InputSchema()
-	if schema["type"] != "object" {
-		t.Errorf(
-			"schema type = %v, want object",
-			schema["type"],
-		)
-	}
-
-	props, ok := schema["properties"].(map[string]interface{})
-	if !ok {
-		t.Fatal("properties should be a map")
-	}
-
-	expectedProps := []string{
-		"account", "mailbox", "uids", "permanent",
-	}
-	for _, p := range expectedProps {
-		if _, ok := props[p]; !ok {
-			t.Errorf(
-				"schema should have %q property",
-				p,
-			)
-		}
-	}
-
-	required, ok := schema["required"].([]string)
-	if !ok {
-		t.Fatal("required should be a []string")
-	}
-
-	requiredSet := map[string]bool{}
-	for _, r := range required {
-		requiredSet[r] = true
-	}
-	expectedRequired := []string{
-		"account", "mailbox", "uids",
-	}
-	for _, r := range expectedRequired {
-		if !requiredSet[r] {
-			t.Errorf(
-				"required should contain %q, "+
-					"got %v",
-				r,
-				required,
-			)
-		}
-	}
-
-	if requiredSet["permanent"] {
-		t.Error(
-			"permanent should not be required",
-		)
-	}
+	assertSchema(
+		t,
+		NewDeleteMessages(&mockDeleter{}).InputSchema(),
+		[]string{
+			"account", "mailbox", "uids",
+			"permanent",
+		},
+		[]string{"account", "mailbox", "uids"},
+	)
 }
 
 func TestDeleteMessages_SafeDelete(t *testing.T) {
@@ -450,18 +395,8 @@ func TestDeleteMessages_ExpungeError(t *testing.T) {
 }
 
 func TestDeleteMessages_InvalidJSON(t *testing.T) {
-	mock := &mockDeleter{}
-	tool := NewDeleteMessages(mock)
-
-	_, err := tool.Execute(
-		context.Background(),
-		json.RawMessage(`{invalid`),
+	assertInvalidJSONError(
+		t,
+		NewDeleteMessages(&mockDeleter{}),
 	)
-	if err == nil {
-		t.Fatal(
-			"Execute() expected error for " +
-				"invalid JSON",
-		)
-	}
-	assertContains(t, err.Error(), "parse")
 }

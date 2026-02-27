@@ -1,28 +1,22 @@
 package tools
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"strings"
 
 	imap "github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
-
-	"github.com/emersion/go-message"
-	_ "github.com/emersion/go-message/charset" // register charsets
 )
 
-// messageGetter is a narrow interface for fetching a single
-// message by UID.
-// *imapmanager.Manager satisfies this implicitly.
+// messageGetter is a narrow interface for fetching messages
+// by UID.
+// *imapmanager.ConnectionManager satisfies this implicitly.
 type messageGetter interface {
-	FetchMessageByUID(
-		account string,
-		mailbox string,
-		uid imap.UID,
+	FetchMessagesByUID(
+		account, mailbox string,
+		uids []imap.UID,
 		options *imap.FetchOptions,
 	) ([]*imapclient.FetchMessageBuffer, error)
 }
@@ -103,10 +97,10 @@ func (t *GetMessage) Execute(
 		)
 	}
 
-	messages, err := t.getter.FetchMessageByUID(
+	messages, err := t.getter.FetchMessagesByUID(
 		params.Account,
 		params.Mailbox,
-		params.UID,
+		[]imap.UID{params.UID},
 		&imap.FetchOptions{
 			Envelope: true,
 			Flags:    true,
@@ -135,25 +129,6 @@ func (t *GetMessage) Execute(
 	)
 }
 
-// maxBodySize is the maximum number of bytes to read from a
-// plain-text message body. Bodies exceeding this limit are
-// truncated.
-const maxBodySize = 1 << 20 // 1 MB
-
-// attachment holds metadata about a MIME attachment.
-type attachment struct {
-	filename  string
-	size      int
-	mediaType string
-}
-
-// parsedBody holds the result of parsing a message body.
-type parsedBody struct {
-	text        string
-	attachments []attachment
-	fromHTML    bool
-}
-
 // formatFullMessage formats a complete message for display.
 func formatFullMessage(
 	account, mailbox string,
@@ -170,7 +145,10 @@ func formatFullMessage(
 	)
 
 	formatEnvelope(&b, msg)
-	formatFlagLine(&b, msg.Flags)
+
+	if flagStr := formatFlags(msg.Flags); flagStr != "" {
+		fmt.Fprintf(&b, "  Flags:   %s\n", flagStr)
+	}
 
 	bodySection := &imap.FetchItemBodySection{}
 	bodyBytes := msg.FindBodySection(bodySection)
@@ -204,7 +182,11 @@ func formatFullMessage(
 			"  (no readable body content)\n",
 		)
 	} else {
-		writeIndentedBody(&b, parsed.text)
+		for _, line := range strings.Split(
+			parsed.text, "\n",
+		) {
+			fmt.Fprintf(&b, "  %s\n", line)
+		}
 	}
 
 	if len(parsed.attachments) > 0 {
@@ -263,17 +245,6 @@ func formatEnvelope(
 	fmt.Fprintf(b, "  Subject: %s\n", env.Subject)
 }
 
-// formatFlagLine writes the flags line to the builder.
-func formatFlagLine(
-	b *strings.Builder,
-	flags []imap.Flag,
-) {
-	flagStr := formatFlags(flags)
-	if flagStr != "" {
-		fmt.Fprintf(b, "  Flags:   %s\n", flagStr)
-	}
-}
-
 // formatAddresses formats a slice of IMAP addresses as a
 // comma-separated string. Addresses with a display name
 // render as "Name <email>", otherwise just "email".
@@ -284,170 +255,24 @@ func formatAddresses(addrs []imap.Address) string {
 
 	parts := make([]string, 0, len(addrs))
 	for _, addr := range addrs {
-		parts = append(parts, formatAddress(addr))
+		email := addr.Addr()
+		if email == "" {
+			email = "(unknown)"
+		}
+		if addr.Name != "" {
+			parts = append(
+				parts,
+				fmt.Sprintf(
+					"%s <%s>",
+					addr.Name,
+					email,
+				),
+			)
+		} else {
+			parts = append(parts, email)
+		}
 	}
 	return strings.Join(parts, ", ")
-}
-
-// formatAddress formats a single IMAP address.
-func formatAddress(addr imap.Address) string {
-	email := addr.Addr()
-	if email == "" {
-		email = "(unknown)"
-	}
-	if addr.Name != "" {
-		return fmt.Sprintf("%s <%s>", addr.Name, email)
-	}
-	return email
-}
-
-// parseBody parses raw RFC 2822 message bytes, extracting the
-// plain text body (or HTML fallback) and attachment metadata.
-func parseBody(raw []byte) (parsedBody, error) {
-	entity, err := message.Read(bytes.NewReader(raw))
-	if err != nil && !message.IsUnknownCharset(err) {
-		return parsedBody{}, fmt.Errorf(
-			"failed to read message: %w",
-			err,
-		)
-	}
-
-	var plainText string
-	var htmlText string
-	var attachments []attachment
-	var plainFound bool
-	var htmlFound bool
-
-	walkErr := entity.Walk(
-		func(
-			path []int,
-			part *message.Entity,
-			err error,
-		) error {
-			if err != nil {
-				return nil
-			}
-
-			mediaType, ctParams, _ := part.Header.ContentType()
-			disp, dispParams, _ := part.Header.ContentDisposition()
-
-			// Collect the first text/plain or text/html part.
-			for _, tp := range []struct {
-				media string
-				text  *string
-				found *bool
-			}{
-				{"text/plain", &plainText, &plainFound},
-				{"text/html", &htmlText, &htmlFound},
-			} {
-				if mediaType == tp.media &&
-					disp != "attachment" &&
-					!*tp.found {
-					data, readErr := readBodyPart(
-						part.Body,
-					)
-					if readErr != nil {
-						return nil
-					}
-					*tp.text = data
-					*tp.found = true
-					return nil
-				}
-			}
-
-			isAttachment := disp == "attachment" ||
-				(path != nil &&
-					!strings.HasPrefix(
-						mediaType,
-						"text/",
-					) &&
-					!strings.HasPrefix(
-						mediaType,
-						"multipart/",
-					))
-
-			if isAttachment {
-				filename := dispParams["filename"]
-				if filename == "" {
-					filename = ctParams["name"]
-				}
-				if filename == "" {
-					filename = "unnamed"
-				}
-
-				n, copyErr := io.Copy(
-					io.Discard,
-					part.Body,
-				)
-				if copyErr != nil {
-					return nil
-				}
-
-				attachments = append(
-					attachments,
-					attachment{
-						filename:  filename,
-						size:      int(n),
-						mediaType: mediaType,
-					},
-				)
-			}
-
-			return nil
-		},
-	)
-	if walkErr != nil {
-		return parsedBody{}, fmt.Errorf(
-			"failed to walk message parts: %w",
-			walkErr,
-		)
-	}
-
-	// Prefer text/plain; fall back to text/html.
-	if plainFound {
-		return parsedBody{
-			text:        plainText,
-			attachments: attachments,
-		}, nil
-	}
-	if htmlFound {
-		converted := HTMLToText(htmlText)
-		return parsedBody{
-			text:        converted,
-			attachments: attachments,
-			fromHTML:    true,
-		}, nil
-	}
-
-	return parsedBody{attachments: attachments}, nil
-}
-
-// readBodyPart reads a MIME body part up to maxBodySize,
-// appending a truncation notice if the limit is exceeded.
-func readBodyPart(r io.Reader) (string, error) {
-	lr := &io.LimitedReader{
-		R: r,
-		N: maxBodySize + 1,
-	}
-	data, err := io.ReadAll(lr)
-	if err != nil {
-		return "", err
-	}
-	if len(data) > maxBodySize {
-		return string(
-			data[:maxBodySize],
-		) + "\n\n[body truncated at 1 MB]", nil
-	}
-	return string(data), nil
-}
-
-// writeIndentedBody writes body text with each line indented
-// by two spaces.
-func writeIndentedBody(b *strings.Builder, body string) {
-	lines := strings.Split(body, "\n")
-	for _, line := range lines {
-		fmt.Fprintf(b, "  %s\n", line)
-	}
 }
 
 // formatSize formats a byte count as a human-readable string.

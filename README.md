@@ -37,8 +37,11 @@ imap-mcp/
 │   ├── imap/            # IMAP connection manager
 │   ├── server/          # MCP JSON-RPC server
 │   └── tools/           # Tool implementations
+├── scripts/             # Helper scripts (fuzz testing)
 ├── config.example.toml  # Example configuration
 ├── Makefile             # Build automation
+├── CLAUDE.md            # Development guidance for AI assistants
+├── SETUP.md             # Setup and integration guide
 └── README.md            # This file
 ```
 
@@ -157,10 +160,6 @@ Claude -> stdin -> JSON-RPC Request -> Tool Execution -> JSON-RPC Response -> st
 - **Config** (`internal/config`): Parses TOML configuration
 - **IMAP Manager** (`internal/imap`): Manages persistent IMAP connections
 - **Tools** (`internal/tools`): Implements MCP tools
-
-## License
-
-MIT License - see LICENSE file for details
 
 ## Resources
 

@@ -2,6 +2,7 @@ package tools
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -14,7 +15,6 @@ var flagLabels = []struct {
 	flag  imap.Flag
 	label string
 }{
-	{imap.FlagSeen, ""},
 	{imap.FlagFlagged, "flagged"},
 	{imap.FlagAnswered, "replied"},
 	{imap.FlagDraft, "draft"},
@@ -25,24 +25,17 @@ var flagLabels = []struct {
 // human-readable flag labels. The absence of \Seen produces
 // "unread".
 func formatFlags(flags []imap.Flag) string {
-	seen := false
 	var labels []string
-
 	for _, fl := range flagLabels {
-		for _, f := range flags {
-			if f == fl.flag {
-				if fl.flag == imap.FlagSeen {
-					seen = true
-				} else if fl.label != "" {
-					labels = append(labels, fl.label)
-				}
-				break
-			}
+		if slices.Contains(flags, fl.flag) {
+			labels = append(labels, fl.label)
 		}
 	}
 
-	if !seen {
-		labels = append([]string{"unread"}, labels...)
+	if !slices.Contains(flags, imap.FlagSeen) {
+		labels = append(
+			[]string{"unread"}, labels...,
+		)
 	}
 
 	return strings.Join(labels, ", ")

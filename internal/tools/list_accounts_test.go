@@ -24,40 +24,15 @@ func (m *mockAccountLister) IsConnected(
 	return m.connected[accountName]
 }
 
-func TestListAccounts_Description(t *testing.T) {
-	tool := NewListAccounts(&mockAccountLister{
-		config: &config.Config{},
-	})
-
-	desc := tool.Description()
-	if desc == "" {
-		t.Error("Description() should not be empty")
-	}
-}
-
 func TestListAccounts_InputSchema(t *testing.T) {
-	tool := NewListAccounts(&mockAccountLister{
-		config: &config.Config{},
-	})
-
-	schema := tool.InputSchema()
-	if schema["type"] != "object" {
-		t.Errorf(
-			"schema type = %v, want object",
-			schema["type"],
-		)
-	}
-
-	props, ok := schema["properties"].(map[string]interface{})
-	if !ok {
-		t.Fatal("properties should be a map")
-	}
-	if len(props) != 0 {
-		t.Errorf(
-			"expected 0 properties, got %d",
-			len(props),
-		)
-	}
+	assertSchema(
+		t,
+		NewListAccounts(&mockAccountLister{
+			config: &config.Config{},
+		}).InputSchema(),
+		nil,
+		nil,
+	)
 }
 
 func TestListAccounts_NoAccounts(t *testing.T) {

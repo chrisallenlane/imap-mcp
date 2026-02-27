@@ -11,6 +11,8 @@ import (
 
 // transferFunc performs a message transfer operation
 // (move or copy).
+// *imapmanager.ConnectionManager.MoveMessages and
+// .CopyMessages satisfy this type.
 type transferFunc func(
 	account, mailbox string,
 	uids []imap.UID,
@@ -139,6 +141,16 @@ func (t *transferTool) Execute(
 		params.UIDs,
 		params.Destination,
 	), nil
+}
+
+// NewMoveMessages creates a new move-messages tool.
+func NewMoveMessages(fn transferFunc) Tool {
+	return newTransferTool("move", "Moved", fn)
+}
+
+// NewCopyMessages creates a new copy-messages tool.
+func NewCopyMessages(fn transferFunc) Tool {
+	return newTransferTool("copy", "Copied", fn)
 }
 
 // formatTransferResult builds a human-readable confirmation

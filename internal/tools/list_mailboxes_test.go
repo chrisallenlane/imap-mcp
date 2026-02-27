@@ -62,44 +62,13 @@ func uint32Ptr(v uint32) *uint32 {
 	return &v
 }
 
-func TestListMailboxes_Description(t *testing.T) {
-	tool := NewListMailboxes(&mockMailboxLister{})
-
-	desc := tool.Description()
-	if desc == "" {
-		t.Error("Description() should not be empty")
-	}
-}
-
 func TestListMailboxes_InputSchema(t *testing.T) {
-	tool := NewListMailboxes(&mockMailboxLister{})
-
-	schema := tool.InputSchema()
-	if schema["type"] != "object" {
-		t.Errorf(
-			"schema type = %v, want object",
-			schema["type"],
-		)
-	}
-
-	props, ok := schema["properties"].(map[string]interface{})
-	if !ok {
-		t.Fatal("properties should be a map")
-	}
-	if _, ok := props["account"]; !ok {
-		t.Error("schema should have 'account' property")
-	}
-
-	required, ok := schema["required"].([]string)
-	if !ok {
-		t.Fatal("required should be a []string")
-	}
-	if len(required) != 1 || required[0] != "account" {
-		t.Errorf(
-			"required = %v, want [account]",
-			required,
-		)
-	}
+	assertSchema(
+		t,
+		NewListMailboxes(&mockMailboxLister{}).InputSchema(),
+		[]string{"account"},
+		[]string{"account"},
+	)
 }
 
 func TestListMailboxes_Success(t *testing.T) {
@@ -408,53 +377,11 @@ func TestListMailboxes_MissingAccount(t *testing.T) {
 	}
 }
 
-func TestListMailboxes_EmptyAccount(t *testing.T) {
-	mock := &mockMailboxLister{
-		mailboxes: map[string][]*imap.ListData{},
-	}
-	tool := NewListMailboxes(mock)
-
-	_, err := tool.Execute(
-		context.Background(),
-		json.RawMessage(`{"account":""}`),
-	)
-	if err == nil {
-		t.Fatal(
-			"Execute() expected error for empty account",
-		)
-	}
-
-	if !strings.Contains(
-		err.Error(),
-		"account is required",
-	) {
-		t.Errorf(
-			"error should say account is required, got: %v",
-			err,
-		)
-	}
-}
-
 func TestListMailboxes_InvalidJSON(t *testing.T) {
-	mock := &mockMailboxLister{
-		mailboxes: map[string][]*imap.ListData{},
-	}
-	tool := NewListMailboxes(mock)
-
-	_, err := tool.Execute(
-		context.Background(),
-		json.RawMessage(`{invalid`),
+	assertInvalidJSONError(
+		t,
+		NewListMailboxes(&mockMailboxLister{}),
 	)
-	if err == nil {
-		t.Fatal("Execute() expected error for invalid JSON")
-	}
-
-	if !strings.Contains(err.Error(), "parse") {
-		t.Errorf(
-			"error should mention parsing, got: %v",
-			err,
-		)
-	}
 }
 
 func TestListMailboxes_CaseInsensitiveInbox(t *testing.T) {
@@ -750,58 +677,6 @@ func TestFormatStatus(t *testing.T) {
 			if got != tt.want {
 				t.Errorf(
 					"formatStatus() = %q, want %q",
-					got,
-					tt.want,
-				)
-			}
-		})
-	}
-}
-
-func TestHasAttr(t *testing.T) {
-	tests := []struct {
-		name   string
-		attrs  []imap.MailboxAttr
-		target imap.MailboxAttr
-		want   bool
-	}{
-		{
-			"nil attrs",
-			nil,
-			imap.MailboxAttrNoSelect,
-			false,
-		},
-		{
-			"empty attrs",
-			[]imap.MailboxAttr{},
-			imap.MailboxAttrNoSelect,
-			false,
-		},
-		{
-			"contains target",
-			[]imap.MailboxAttr{
-				imap.MailboxAttrHasChildren,
-				imap.MailboxAttrNoSelect,
-			},
-			imap.MailboxAttrNoSelect,
-			true,
-		},
-		{
-			"does not contain target",
-			[]imap.MailboxAttr{
-				imap.MailboxAttrHasChildren,
-			},
-			imap.MailboxAttrNoSelect,
-			false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := hasAttr(tt.attrs, tt.target)
-			if got != tt.want {
-				t.Errorf(
-					"hasAttr() = %v, want %v",
 					got,
 					tt.want,
 				)

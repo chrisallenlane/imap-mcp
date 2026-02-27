@@ -1,11 +1,12 @@
 package tools
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log"
-	"sort"
+	"slices"
 	"strings"
 
 	imap "github.com/emersion/go-imap/v2"
@@ -13,7 +14,7 @@ import (
 
 // mailboxLister is a narrow interface for listing mailboxes
 // and querying their status.
-// *imapmanager.Manager satisfies this implicitly.
+// *imapmanager.ConnectionManager satisfies this implicitly.
 type mailboxLister interface {
 	ListMailboxes(
 		account string,
@@ -92,7 +93,7 @@ func (t *ListMailboxes) Execute(
 	// Fetch status for each selectable mailbox.
 	statuses := make(map[string]*imap.StatusData)
 	for _, mb := range mailboxes {
-		if hasAttr(mb.Attrs, imap.MailboxAttrNoSelect) {
+		if slices.Contains(mb.Attrs, imap.MailboxAttrNoSelect) {
 			continue
 		}
 
@@ -120,19 +121,6 @@ func (t *ListMailboxes) Execute(
 		mailboxes,
 		statuses,
 	), nil
-}
-
-// hasAttr reports whether attrs contains the given attribute.
-func hasAttr(
-	attrs []imap.MailboxAttr,
-	target imap.MailboxAttr,
-) bool {
-	for _, a := range attrs {
-		if a == target {
-			return true
-		}
-	}
-	return false
 }
 
 // specialUseLabels maps IMAP special-use attributes to
@@ -169,9 +157,11 @@ func formatMailboxes(
 		}
 	}
 
-	sort.Slice(rest, func(i, j int) bool {
-		return strings.ToLower(rest[i].Mailbox) <
-			strings.ToLower(rest[j].Mailbox)
+	slices.SortFunc(rest, func(a, b *imap.ListData) int {
+		return cmp.Compare(
+			strings.ToLower(a.Mailbox),
+			strings.ToLower(b.Mailbox),
+		)
 	})
 
 	// Build output with INBOX first.

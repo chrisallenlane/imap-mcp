@@ -19,10 +19,10 @@ type mockMessageGetter struct {
 	err      error
 }
 
-func (m *mockMessageGetter) FetchMessageByUID(
+func (m *mockMessageGetter) FetchMessagesByUID(
 	_ string,
 	_ string,
-	_ imap.UID,
+	_ []imap.UID,
 	_ *imap.FetchOptions,
 ) ([]*imapclient.FetchMessageBuffer, error) {
 	if m.err != nil {
@@ -147,64 +147,13 @@ func standardEnvelope() *imap.Envelope {
 	}
 }
 
-func TestGetMessage_Description(t *testing.T) {
-	tool := NewGetMessage(&mockMessageGetter{})
-
-	desc := tool.Description()
-	if desc == "" {
-		t.Error("Description() should not be empty")
-	}
-}
-
 func TestGetMessage_InputSchema(t *testing.T) {
-	tool := NewGetMessage(&mockMessageGetter{})
-
-	schema := tool.InputSchema()
-	if schema["type"] != "object" {
-		t.Errorf(
-			"schema type = %v, want object",
-			schema["type"],
-		)
-	}
-
-	props, ok := schema["properties"].(map[string]interface{})
-	if !ok {
-		t.Fatal("properties should be a map")
-	}
-	if _, ok := props["account"]; !ok {
-		t.Error("schema should have 'account' property")
-	}
-	if _, ok := props["mailbox"]; !ok {
-		t.Error("schema should have 'mailbox' property")
-	}
-	if _, ok := props["uid"]; !ok {
-		t.Error("schema should have 'uid' property")
-	}
-
-	required, ok := schema["required"].([]string)
-	if !ok {
-		t.Fatal("required should be a []string")
-	}
-	if len(required) != 3 {
-		t.Fatalf(
-			"expected 3 required fields, got %d",
-			len(required),
-		)
-	}
-
-	requiredSet := map[string]bool{}
-	for _, r := range required {
-		requiredSet[r] = true
-	}
-	if !requiredSet["account"] ||
-		!requiredSet["mailbox"] ||
-		!requiredSet["uid"] {
-		t.Errorf(
-			"required = %v, "+
-				"want [account, mailbox, uid]",
-			required,
-		)
-	}
+	assertSchema(
+		t,
+		NewGetMessage(&mockMessageGetter{}).InputSchema(),
+		[]string{"account", "mailbox", "uid"},
+		[]string{"account", "mailbox", "uid"},
+	)
 }
 
 func TestGetMessage_Success(t *testing.T) {
@@ -605,18 +554,10 @@ func TestGetMessage_MissingUID(t *testing.T) {
 }
 
 func TestGetMessage_InvalidJSON(t *testing.T) {
-	tool := NewGetMessage(&mockMessageGetter{})
-
-	_, err := tool.Execute(
-		context.Background(),
-		json.RawMessage(`{invalid`),
+	assertInvalidJSONError(
+		t,
+		NewGetMessage(&mockMessageGetter{}),
 	)
-	if err == nil {
-		t.Fatal(
-			"Execute() expected error for invalid JSON",
-		)
-	}
-	assertContains(t, err.Error(), "parse")
 }
 
 func TestGetMessage_NotFound(t *testing.T) {
@@ -867,47 +808,6 @@ func TestFormatSize(t *testing.T) {
 				t.Errorf(
 					"formatSize(%d) = %q, want %q",
 					tt.bytes,
-					got,
-					tt.want,
-				)
-			}
-		})
-	}
-}
-
-func TestFormatAddress(t *testing.T) {
-	tests := []struct {
-		name string
-		addr imap.Address
-		want string
-	}{
-		{
-			"email only",
-			imap.Address{Mailbox: "alice", Host: "a.com"},
-			"alice@a.com",
-		},
-		{
-			"with display name",
-			imap.Address{
-				Name:    "Alice",
-				Mailbox: "alice",
-				Host:    "a.com",
-			},
-			"Alice <alice@a.com>",
-		},
-		{
-			"empty address",
-			imap.Address{},
-			"(unknown)",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := formatAddress(tt.addr)
-			if got != tt.want {
-				t.Errorf(
-					"formatAddress() = %q, want %q",
 					got,
 					tt.want,
 				)

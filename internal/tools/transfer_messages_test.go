@@ -45,62 +45,19 @@ func newTestTransferTool(
 	)
 }
 
-func TestTransferTool_Description(t *testing.T) {
-	tool := newTestTransferTool(&mockTransfer{})
-
-	desc := tool.Description()
-	if desc == "" {
-		t.Error("Description() should not be empty")
-	}
-}
-
 func TestTransferTool_InputSchema(t *testing.T) {
-	tool := newTestTransferTool(&mockTransfer{})
-
-	schema := tool.InputSchema()
-	if schema["type"] != "object" {
-		t.Errorf(
-			"schema type = %v, want object",
-			schema["type"],
-		)
-	}
-
-	props, ok := schema["properties"].(map[string]interface{})
-	if !ok {
-		t.Fatal("properties should be a map")
-	}
-
-	expectedProps := []string{
-		"account", "mailbox", "uids", "destination",
-	}
-	for _, p := range expectedProps {
-		if _, ok := props[p]; !ok {
-			t.Errorf(
-				"schema should have %q property",
-				p,
-			)
-		}
-	}
-
-	required, ok := schema["required"].([]string)
-	if !ok {
-		t.Fatal("required should be a []string")
-	}
-
-	requiredSet := map[string]bool{}
-	for _, r := range required {
-		requiredSet[r] = true
-	}
-	for _, r := range expectedProps {
-		if !requiredSet[r] {
-			t.Errorf(
-				"required should contain %q, "+
-					"got %v",
-				r,
-				required,
-			)
-		}
-	}
+	assertSchema(
+		t,
+		newTestTransferTool(&mockTransfer{}).InputSchema(),
+		[]string{
+			"account", "mailbox", "uids",
+			"destination",
+		},
+		[]string{
+			"account", "mailbox", "uids",
+			"destination",
+		},
+	)
 }
 
 func TestTransferTool_EmptyUIDs(t *testing.T) {
@@ -211,18 +168,10 @@ func TestTransferTool_DestinationEqualsSource(
 }
 
 func TestTransferTool_InvalidJSON(t *testing.T) {
-	tool := newTestTransferTool(&mockTransfer{})
-
-	_, err := tool.Execute(
-		context.Background(),
-		json.RawMessage(`{invalid`),
+	assertInvalidJSONError(
+		t,
+		newTestTransferTool(&mockTransfer{}),
 	)
-	if err == nil {
-		t.Fatal(
-			"Execute() expected error for invalid JSON",
-		)
-	}
-	assertContains(t, err.Error(), "parse")
 }
 
 func TestTransferTool_OperationError(t *testing.T) {

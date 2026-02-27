@@ -49,7 +49,7 @@ func newTestServer() *Server {
 			},
 		},
 	}
-	mgr := imapmanager.NewManager(cfg)
+	mgr := imapmanager.NewConnectionManager(cfg)
 	return New(mgr)
 }
 

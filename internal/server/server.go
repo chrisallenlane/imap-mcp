@@ -25,12 +25,12 @@ const (
 
 // Server represents an MCP server
 type Server struct {
-	imap  *imapmanager.Manager
+	imap  *imapmanager.ConnectionManager
 	tools map[string]tools.Tool
 }
 
 // New creates a new MCP server
-func New(mgr *imapmanager.Manager) *Server {
+func New(mgr *imapmanager.ConnectionManager) *Server {
 	s := &Server{
 		imap:  mgr,
 		tools: make(map[string]tools.Tool),
@@ -49,8 +49,12 @@ func (s *Server) registerTools() {
 	s.tools["get_message"] = tools.NewGetMessage(s.imap)
 	s.tools["search_messages"] = tools.NewSearchMessages(s.imap)
 	s.tools["mark_messages"] = tools.NewMarkMessages(s.imap)
-	s.tools["move_messages"] = tools.NewMoveMessages(s.imap)
-	s.tools["copy_messages"] = tools.NewCopyMessages(s.imap)
+	s.tools["move_messages"] = tools.NewMoveMessages(
+		s.imap.MoveMessages,
+	)
+	s.tools["copy_messages"] = tools.NewCopyMessages(
+		s.imap.CopyMessages,
+	)
 	s.tools["delete_messages"] = tools.NewDeleteMessages(s.imap)
 	s.tools["create_mailbox"] = tools.NewCreateMailbox(s.imap)
 	s.tools["delete_mailbox"] = tools.NewDeleteMailbox(s.imap)

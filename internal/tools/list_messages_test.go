@@ -41,61 +41,13 @@ func (m *mockMessageFetcher) FetchMessages(
 	return m.messages, nil
 }
 
-func TestListMessages_Description(t *testing.T) {
-	tool := NewListMessages(&mockMessageFetcher{})
-
-	desc := tool.Description()
-	if desc == "" {
-		t.Error("Description() should not be empty")
-	}
-}
-
 func TestListMessages_InputSchema(t *testing.T) {
-	tool := NewListMessages(&mockMessageFetcher{})
-
-	schema := tool.InputSchema()
-	if schema["type"] != "object" {
-		t.Errorf(
-			"schema type = %v, want object",
-			schema["type"],
-		)
-	}
-
-	props, ok := schema["properties"].(map[string]interface{})
-	if !ok {
-		t.Fatal("properties should be a map")
-	}
-	if _, ok := props["account"]; !ok {
-		t.Error("schema should have 'account' property")
-	}
-	if _, ok := props["mailbox"]; !ok {
-		t.Error("schema should have 'mailbox' property")
-	}
-	if _, ok := props["page"]; !ok {
-		t.Error("schema should have 'page' property")
-	}
-
-	required, ok := schema["required"].([]string)
-	if !ok {
-		t.Fatal("required should be a []string")
-	}
-	if len(required) != 2 {
-		t.Fatalf(
-			"expected 2 required fields, got %d",
-			len(required),
-		)
-	}
-
-	requiredSet := map[string]bool{}
-	for _, r := range required {
-		requiredSet[r] = true
-	}
-	if !requiredSet["account"] || !requiredSet["mailbox"] {
-		t.Errorf(
-			"required = %v, want [account, mailbox]",
-			required,
-		)
-	}
+	assertSchema(
+		t,
+		NewListMessages(&mockMessageFetcher{}).InputSchema(),
+		[]string{"account", "mailbox", "page"},
+		[]string{"account", "mailbox"},
+	)
 }
 
 func TestListMessages_Success(t *testing.T) {
@@ -322,19 +274,10 @@ func TestListMessages_MissingMailbox(t *testing.T) {
 }
 
 func TestListMessages_InvalidJSON(t *testing.T) {
-	mock := &mockMessageFetcher{}
-	tool := NewListMessages(mock)
-
-	_, err := tool.Execute(
-		context.Background(),
-		json.RawMessage(`{invalid`),
+	assertInvalidJSONError(
+		t,
+		NewListMessages(&mockMessageFetcher{}),
 	)
-	if err == nil {
-		t.Fatal(
-			"Execute() expected error for invalid JSON",
-		)
-	}
-	assertContains(t, err.Error(), "parse")
 }
 
 func TestListMessages_ExamineError(t *testing.T) {

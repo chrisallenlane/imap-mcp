@@ -10,7 +10,7 @@ import (
 )
 
 // messageDeleter is a narrow interface for deleting messages.
-// *imapmanager.Manager satisfies this implicitly.
+// *imapmanager.ConnectionManager satisfies this implicitly.
 type messageDeleter interface {
 	FindTrashMailbox(account string) (string, error)
 	MoveMessages(

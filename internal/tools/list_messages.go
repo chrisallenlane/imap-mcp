@@ -14,7 +14,7 @@ const pageSize = 100
 
 // messageFetcher is a narrow interface for examining mailboxes
 // and fetching messages.
-// *imapmanager.Manager satisfies this implicitly.
+// *imapmanager.ConnectionManager satisfies this implicitly.
 type messageFetcher interface {
 	ExamineMailbox(
 		account, mailbox string,

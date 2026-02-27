@@ -4,14 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/chrisallenlane/imap-mcp/internal/config"
 )
 
 // accountLister is a narrow interface for listing accounts.
-// *imapmanager.Manager satisfies this implicitly.
+// *imapmanager.ConnectionManager satisfies this implicitly.
 type accountLister interface {
 	Config() *config.Config
 	IsConnected(accountName string) bool
@@ -56,11 +57,7 @@ func (t *ListAccounts) Execute(
 	}
 
 	// Sort account names for deterministic output.
-	names := make([]string, 0, len(cfg.Accounts))
-	for name := range cfg.Accounts {
-		names = append(names, name)
-	}
-	sort.Strings(names)
+	names := slices.Sorted(maps.Keys(cfg.Accounts))
 
 	var b strings.Builder
 	b.WriteString("Configured accounts:\n")
