@@ -78,6 +78,11 @@ func (s *Server) registerTools() {
 			s.smtp,
 			s.imap,
 		)
+		s.tools["reply_message"] = tools.NewReplyMessage(
+			s.imap,
+			s.smtp,
+			s.imap,
+		)
 	}
 }
 
