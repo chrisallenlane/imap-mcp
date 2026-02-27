@@ -86,6 +86,11 @@ coverage:
 fuzz:
 	./scripts/fuzz.sh
 
+## sloc: count source lines of code
+.PHONY: sloc
+sloc:
+	scc --exclude-dir vendor .
+
 ## check: format, lint, vet, and test
 .PHONY: check
 check: | fmt lint vet test
