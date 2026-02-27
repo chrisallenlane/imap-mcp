@@ -79,11 +79,11 @@ func (t *GetAttachment) Execute(
 	args json.RawMessage,
 ) (string, error) {
 	var params struct {
-		Account    string   `json:"account"`
-		Mailbox    string   `json:"mailbox"`
-		UID        imap.UID `json:"uid"`
-		Attachment int      `json:"attachment"`
-		Directory  string   `json:"directory"`
+		Account    string          `json:"account"`
+		Mailbox    string          `json:"mailbox"`
+		UID        json.RawMessage `json:"uid"`
+		Attachment int             `json:"attachment"`
+		Directory  string          `json:"directory"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return "", fmt.Errorf(
@@ -98,11 +98,17 @@ func (t *GetAttachment) Execute(
 	if params.Mailbox == "" {
 		return "", fmt.Errorf("mailbox is required")
 	}
-	if params.UID == 0 {
+
+	uid, err := parseUID(params.UID)
+	if err != nil {
+		return "", err
+	}
+	if uid == 0 {
 		return "", fmt.Errorf(
 			"uid is required and must be > 0",
 		)
 	}
+
 	if params.Attachment <= 0 {
 		return "", fmt.Errorf(
 			"attachment is required and must be > 0",
@@ -112,7 +118,7 @@ func (t *GetAttachment) Execute(
 	messages, err := t.getter.FetchMessagesByUID(
 		params.Account,
 		params.Mailbox,
-		[]imap.UID{params.UID},
+		[]imap.UID{uid},
 		&imap.FetchOptions{
 			UID: true,
 			BodySection: []*imap.FetchItemBodySection{

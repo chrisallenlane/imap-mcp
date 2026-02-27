@@ -1,8 +1,10 @@
 package tools
 
 import (
+	"encoding/json"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -111,6 +113,36 @@ func formatFlagNames(flags []imap.Flag) string {
 		names[i] = string(f)
 	}
 	return strings.Join(names, ", ")
+}
+
+// parseUID parses a UID from a JSON value that may be either
+// a JSON number or a JSON string containing an integer.
+// This handles LLMs that pass UIDs as quoted strings.
+func parseUID(data json.RawMessage) (imap.UID, error) {
+	if len(data) == 0 {
+		return 0, fmt.Errorf("uid is required")
+	}
+
+	// Try as a number first.
+	var n uint32
+	if err := json.Unmarshal(data, &n); err == nil {
+		return imap.UID(n), nil
+	}
+
+	// Fall back to string.
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return 0, fmt.Errorf("uid must be an integer")
+	}
+
+	v, err := strconv.ParseUint(s, 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf(
+			"uid must be a valid integer: %w", err,
+		)
+	}
+
+	return imap.UID(v), nil
 }
 
 // envelopeDate returns the envelope date from a message,

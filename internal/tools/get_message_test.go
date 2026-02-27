@@ -196,6 +196,41 @@ func TestGetMessage_Success(t *testing.T) {
 	assertContains(t, result, "Hello, world!")
 }
 
+func TestGetMessage_UIDAsString(t *testing.T) {
+	// Claude sometimes passes UIDs as quoted strings;
+	// verify the tool accepts either form.
+	rawBody := makeRawMessage(
+		"text/plain",
+		"Hello, world!",
+	)
+	mock := &mockMessageGetter{
+		messages: []*imapclient.FetchMessageBuffer{
+			mockMsg(
+				imap.UID(5201),
+				[]imap.Flag{imap.FlagSeen},
+				standardEnvelope(),
+				rawBody,
+			),
+		},
+	}
+	tool := NewGetMessage(mock)
+
+	result, err := tool.Execute(
+		context.Background(),
+		json.RawMessage(
+			`{"account":"gmail",`+
+				`"mailbox":"INBOX","uid":"5201"}`,
+		),
+	)
+	if err != nil {
+		t.Fatalf(
+			"Execute() unexpected error: %v", err,
+		)
+	}
+
+	assertContains(t, result, "Message UID 5201")
+}
+
 func TestGetMessage_Multipart(t *testing.T) {
 	rawBody := makeMultipartMessage()
 	mock := &mockMessageGetter{

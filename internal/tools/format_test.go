@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -8,6 +9,49 @@ import (
 	imap "github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 )
+
+func TestParseUID(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    imap.UID
+		wantErr bool
+	}{
+		{"integer", "57098", imap.UID(57098), false},
+		{"string integer", `"57098"`, imap.UID(57098), false},
+		{"one", "1", imap.UID(1), false},
+		{"string one", `"1"`, imap.UID(1), false},
+		{"empty", "", 0, true},
+		{"non-numeric string", `"abc"`, 0, true},
+		{"invalid type", `[]`, 0, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseUID(
+				json.RawMessage(tt.input),
+			)
+			if (err != nil) != tt.wantErr {
+				t.Errorf(
+					"parseUID(%q) error = %v, "+
+						"wantErr %v",
+					tt.input,
+					err,
+					tt.wantErr,
+				)
+				return
+			}
+			if !tt.wantErr && got != tt.want {
+				t.Errorf(
+					"parseUID(%q) = %d, want %d",
+					tt.input,
+					got,
+					tt.want,
+				)
+			}
+		})
+	}
+}
 
 func TestFormatFlags(t *testing.T) {
 	tests := []struct {

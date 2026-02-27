@@ -88,6 +88,41 @@ func TestGetAttachment_Success(t *testing.T) {
 	}
 }
 
+func TestGetAttachment_UIDAsString(t *testing.T) {
+	// Claude sometimes passes UIDs as quoted strings;
+	// verify the tool accepts either form.
+	dir := t.TempDir()
+	rawBody := makeMultipartMessage()
+	mock := &mockMessageGetter{
+		messages: []*imapclient.FetchMessageBuffer{
+			mockMsg(
+				imap.UID(100),
+				nil,
+				nil,
+				rawBody,
+			),
+		},
+	}
+	tool := NewGetAttachment(mock)
+
+	result, err := tool.Execute(
+		context.Background(),
+		json.RawMessage(fmt.Sprintf(
+			`{"account":"a","mailbox":"INBOX",`+
+				`"uid":"100","attachment":1,`+
+				`"directory":%q}`,
+			dir,
+		)),
+	)
+	if err != nil {
+		t.Fatalf(
+			"Execute() unexpected error: %v", err,
+		)
+	}
+
+	assertContains(t, result, "Downloaded test.pdf")
+}
+
 func TestGetAttachment_MultipleAttachments(t *testing.T) {
 	dir := t.TempDir()
 	rawBody := makeMultiAttachmentMessage()
