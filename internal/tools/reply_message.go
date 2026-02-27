@@ -230,13 +230,21 @@ func (t *ReplyMessage) Execute(
 	savedToSent := acct.SaveSent &&
 		trySaveToSent(t.saver, params.Account, msgBytes)
 
-	return formatReplyResult(
-		params.Mode,
-		cp.To,
-		cp.CC,
-		cp.Subject,
-		savedToSent,
-	), nil
+	modeLabel := "Reply"
+	switch params.Mode {
+	case "reply_all":
+		modeLabel = "Reply-all"
+	case "forward":
+		modeLabel = "Forward"
+	}
+
+	return formatSendConfirmation(sendConfirmation{
+		Title:       modeLabel,
+		To:          cp.To,
+		CC:          cp.CC,
+		Subject:     cp.Subject,
+		SavedToSent: savedToSent,
+	}), nil
 }
 
 // validateReplyParams validates the required parameters.
@@ -588,44 +596,4 @@ func extractAllAttachments(
 		})
 	}
 	return result, nil
-}
-
-// formatReplyResult formats the reply/forward confirmation.
-func formatReplyResult(
-	mode string,
-	to, cc []string,
-	subject string,
-	savedToSent bool,
-) string {
-	var b strings.Builder
-
-	modeLabel := "Reply"
-	switch mode {
-	case "reply_all":
-		modeLabel = "Reply-all"
-	case "forward":
-		modeLabel = "Forward"
-	}
-
-	fmt.Fprintf(&b, "%s sent successfully.\n", modeLabel)
-
-	fmt.Fprintf(
-		&b,
-		"\n  To:      %s\n",
-		strings.Join(to, ", "),
-	)
-	if len(cc) > 0 {
-		fmt.Fprintf(
-			&b,
-			"  CC:      %s\n",
-			strings.Join(cc, ", "),
-		)
-	}
-	fmt.Fprintf(&b, "  Subject: %s\n", subject)
-
-	if savedToSent {
-		b.WriteString("  Saved to Sent folder.\n")
-	}
-
-	return b.String()
 }

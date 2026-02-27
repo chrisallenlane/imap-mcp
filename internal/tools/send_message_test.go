@@ -548,14 +548,15 @@ func TestSendMessage_InvalidJSON(t *testing.T) {
 }
 
 func TestFormatSendResult(t *testing.T) {
-	result := formatSendResult(
-		[]string{"to@example.com"},
-		[]string{"cc@example.com"},
-		[]string{"bcc@example.com"},
-		"Test Subject",
-		[]string{"file.txt"},
-		true,
-	)
+	result := formatSendConfirmation(sendConfirmation{
+		Title:       "Message",
+		To:          []string{"to@example.com"},
+		CC:          []string{"cc@example.com"},
+		BCC:         []string{"bcc@example.com"},
+		Subject:     "Test Subject",
+		Attachments: 1,
+		SavedToSent: true,
+	})
 
 	assertContains(t, result, "sent successfully")
 	assertContains(t, result, "to@example.com")
@@ -567,14 +568,11 @@ func TestFormatSendResult(t *testing.T) {
 }
 
 func TestFormatSendResult_Minimal(t *testing.T) {
-	result := formatSendResult(
-		[]string{"to@example.com"},
-		nil,
-		nil,
-		"Test",
-		nil,
-		false,
-	)
+	result := formatSendConfirmation(sendConfirmation{
+		Title:   "Message",
+		To:      []string{"to@example.com"},
+		Subject: "Test",
+	})
 
 	assertContains(t, result, "sent successfully")
 	assertNotContains(t, result, "CC:")

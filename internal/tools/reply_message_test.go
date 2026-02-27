@@ -712,13 +712,12 @@ func TestValidateReplyParams(t *testing.T) {
 }
 
 func TestFormatReplyResult(t *testing.T) {
-	result := formatReplyResult(
-		"reply",
-		[]string{"to@example.com"},
-		nil,
-		"Re: Test",
-		true,
-	)
+	result := formatSendConfirmation(sendConfirmation{
+		Title:       "Reply",
+		To:          []string{"to@example.com"},
+		Subject:     "Re: Test",
+		SavedToSent: true,
+	})
 	assertContains(t, result, "Reply sent successfully")
 	assertContains(t, result, "to@example.com")
 	assertContains(t, result, "Re: Test")
@@ -726,25 +725,22 @@ func TestFormatReplyResult(t *testing.T) {
 }
 
 func TestFormatReplyResult_ReplyAll(t *testing.T) {
-	result := formatReplyResult(
-		"reply_all",
-		[]string{"to@example.com"},
-		[]string{"cc@example.com"},
-		"Re: Test",
-		false,
-	)
+	result := formatSendConfirmation(sendConfirmation{
+		Title:   "Reply-all",
+		To:      []string{"to@example.com"},
+		CC:      []string{"cc@example.com"},
+		Subject: "Re: Test",
+	})
 	assertContains(t, result, "Reply-all sent successfully")
 	assertContains(t, result, "CC:")
 	assertNotContains(t, result, "Saved to Sent")
 }
 
 func TestFormatReplyResult_Forward(t *testing.T) {
-	result := formatReplyResult(
-		"forward",
-		[]string{"fwd@example.com"},
-		nil,
-		"Fwd: Test",
-		false,
-	)
+	result := formatSendConfirmation(sendConfirmation{
+		Title:   "Forward",
+		To:      []string{"fwd@example.com"},
+		Subject: "Fwd: Test",
+	})
 	assertContains(t, result, "Forward sent successfully")
 }

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"strings"
 
 	imap "github.com/emersion/go-imap/v2"
 
@@ -195,58 +194,13 @@ func (t *SendMessage) Execute(
 	savedToSent := acct.SaveSent &&
 		trySaveToSent(t.saver, params.Account, msgBytes)
 
-	return formatSendResult(
-		params.To,
-		params.CC,
-		params.BCC,
-		params.Subject,
-		params.Attachments,
-		savedToSent,
-	), nil
-}
-
-// formatSendResult formats the send confirmation message.
-func formatSendResult(
-	to, cc, bcc []string,
-	subject string,
-	attachments []string,
-	savedToSent bool,
-) string {
-	var b strings.Builder
-	b.WriteString("Message sent successfully.\n")
-
-	fmt.Fprintf(
-		&b,
-		"\n  To:      %s\n",
-		strings.Join(to, ", "),
-	)
-	if len(cc) > 0 {
-		fmt.Fprintf(
-			&b,
-			"  CC:      %s\n",
-			strings.Join(cc, ", "),
-		)
-	}
-	if len(bcc) > 0 {
-		fmt.Fprintf(
-			&b,
-			"  BCC:     %s\n",
-			strings.Join(bcc, ", "),
-		)
-	}
-	fmt.Fprintf(&b, "  Subject: %s\n", subject)
-
-	if len(attachments) > 0 {
-		fmt.Fprintf(
-			&b,
-			"  Attachments: %d\n",
-			len(attachments),
-		)
-	}
-
-	if savedToSent {
-		b.WriteString("  Saved to Sent folder.\n")
-	}
-
-	return b.String()
+	return formatSendConfirmation(sendConfirmation{
+		Title:       "Message",
+		To:          params.To,
+		CC:          params.CC,
+		BCC:         params.BCC,
+		Subject:     params.Subject,
+		Attachments: len(params.Attachments),
+		SavedToSent: savedToSent,
+	}), nil
 }

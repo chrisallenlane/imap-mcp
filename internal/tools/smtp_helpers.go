@@ -2,6 +2,7 @@ package tools
 
 import (
 	"fmt"
+	"strings"
 
 	imap "github.com/emersion/go-imap/v2"
 
@@ -79,4 +80,60 @@ func collectRecipients(
 	all = append(all, cc...)
 	all = append(all, bcc...)
 	return all
+}
+
+// sendConfirmation holds data for formatting a
+// send/reply/forward confirmation message.
+type sendConfirmation struct {
+	Title       string
+	To          []string
+	CC          []string
+	BCC         []string
+	Subject     string
+	Attachments int
+	SavedToSent bool
+}
+
+// formatSendConfirmation formats a send/reply/forward
+// confirmation message.
+func formatSendConfirmation(c sendConfirmation) string {
+	var b strings.Builder
+	fmt.Fprintf(
+		&b, "%s sent successfully.\n", c.Title,
+	)
+
+	fmt.Fprintf(
+		&b,
+		"\n  To:      %s\n",
+		strings.Join(c.To, ", "),
+	)
+	if len(c.CC) > 0 {
+		fmt.Fprintf(
+			&b,
+			"  CC:      %s\n",
+			strings.Join(c.CC, ", "),
+		)
+	}
+	if len(c.BCC) > 0 {
+		fmt.Fprintf(
+			&b,
+			"  BCC:     %s\n",
+			strings.Join(c.BCC, ", "),
+		)
+	}
+	fmt.Fprintf(&b, "  Subject: %s\n", c.Subject)
+
+	if c.Attachments > 0 {
+		fmt.Fprintf(
+			&b,
+			"  Attachments: %d\n",
+			c.Attachments,
+		)
+	}
+
+	if c.SavedToSent {
+		b.WriteString("  Saved to Sent folder.\n")
+	}
+
+	return b.String()
 }

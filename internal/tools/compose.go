@@ -189,8 +189,11 @@ func composeMultipartMessage(
 
 	// Write raw attachments (forwarded from source).
 	for _, att := range rawAttachments {
-		if err := writeRawAttachment(
-			mw, att,
+		if err := writeAttachmentData(
+			mw,
+			att.Filename,
+			att.MediaType,
+			att.Data,
 		); err != nil {
 			return nil, err
 		}
@@ -226,17 +229,6 @@ func writeAttachment(
 
 	return writeAttachmentData(
 		mw, filename, mediaType, data,
-	)
-}
-
-// writeRawAttachment writes a pre-loaded attachment (e.g.,
-// forwarded from a source message) as a MIME attachment part.
-func writeRawAttachment(
-	mw *gomail.Writer,
-	att rawAttachment,
-) error {
-	return writeAttachmentData(
-		mw, att.Filename, att.MediaType, att.Data,
 	)
 }
 
