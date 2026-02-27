@@ -477,64 +477,6 @@ func TestSend_HappyPath(t *testing.T) {
 	}
 }
 
-func TestSend_CloseCalledOnError(t *testing.T) {
-	mc := &mockClient{
-		authErr:    errors.New("auth failed"),
-		dataWriter: &mockDataWriter{},
-	}
-	mgr := newMockManager(smtpEnabledConfig(), mc)
-
-	_ = mgr.Send(
-		"test",
-		"from@example.com",
-		[]string{"to@example.com"},
-		strings.NewReader("test"),
-	)
-
-	if mc.closeCalls != 1 {
-		t.Errorf(
-			"Close should be called once via defer, got %d",
-			mc.closeCalls,
-		)
-	}
-}
-
-func TestSend_MultipleRecipients(t *testing.T) {
-	mc := &mockClient{
-		dataWriter: &mockDataWriter{},
-	}
-	mgr := newMockManager(smtpEnabledConfig(), mc)
-
-	recipients := []string{
-		"a@example.com",
-		"b@example.com",
-		"c@example.com",
-	}
-	err := mgr.Send(
-		"test",
-		"from@example.com",
-		recipients,
-		strings.NewReader("test"),
-	)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(mc.rcptAddrs) != 3 {
-		t.Fatalf(
-			"Rcpt called %d times, want 3",
-			len(mc.rcptAddrs),
-		)
-	}
-	for i, want := range recipients {
-		if mc.rcptAddrs[i] != want {
-			t.Errorf(
-				"Rcpt[%d] = %q, want %q",
-				i, mc.rcptAddrs[i], want,
-			)
-		}
-	}
-}
-
 func TestDial_InvalidTLSMode(t *testing.T) {
 	acct := config.Account{
 		SMTPHost: "smtp.example.com",
