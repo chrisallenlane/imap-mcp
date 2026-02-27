@@ -42,7 +42,7 @@ imap-mcp/
 │   │   └── types.go             # JSON-RPC request/response types
 │   └── tools/                   # MCP tool implementations
 │       ├── tool.go              # Tool interface definition
-│       ├── format.go            # Shared formatting helpers (formatFlags, formatMessage, formatUIDs, toIMAPUIDs, etc.)
+│       ├── format.go            # Shared formatting and UID parsing helpers (formatFlags, formatMessage, formatUIDs, toIMAPUIDs, parseUID, parseUIDs, etc.)
 │       ├── format_test.go       # Format helper tests
 │       ├── format_fuzz_test.go  # Fuzz tests for format helpers
 │       ├── html.go              # HTML-to-text conversion (HTMLToText)
@@ -378,7 +378,7 @@ Every new tool should have:
 - One tool per file, except `move_messages` and `copy_messages` which share a `transferTool` implementation (and their constructors) in `transfer_messages.go`
 - Tool interface defined in `tool.go`
 - MIME body parsing separated into `parse.go` (parsing concern) while `get_message.go` handles presentation
-- Shared formatting helpers (e.g., `formatFlags`, `formatMessage`, `formatUIDs`, `toIMAPUIDs`, `formatFlagNames`, `envelopeDate`) live in `format.go`; `formatAddresses` lives in `get_message.go`
+- Shared formatting helpers (e.g., `formatFlags`, `formatMessage`, `formatUIDs`, `toIMAPUIDs`, `formatFlagNames`, `envelopeDate`) and UID parsing helpers (`parseUID`, `parseUIDs`, `parseCommaSeparatedUIDs`) live in `format.go`; `formatAddresses` lives in `get_message.go`
 - Shared test helpers (e.g., `assertContains`) live in `helpers_test.go`
 - The `internal/imap/` package is organized by domain noun: `manager.go` (connection lifecycle + shared helpers), `message.go` (message operations), `mailbox.go` (mailbox operations), `retry.go` (reconnect logic)
 

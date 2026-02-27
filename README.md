@@ -18,6 +18,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server that p
 | `list_mailboxes` | Lists mailboxes for an account with special-use annotations and message counts |
 | `list_messages` | Lists message envelopes with pagination (100 per page, newest first) |
 | `get_message` | Retrieves a full message by UID (headers, body, attachments) |
+| `get_attachment` | Downloads an email attachment to disk by message UID and attachment number |
 | `search_messages` | Searches messages by from, to, subject, body, date range, and flags |
 | `mark_messages` | Sets or clears read/flagged status on messages |
 | `move_messages` | Moves messages between mailboxes |

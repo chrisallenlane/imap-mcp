@@ -39,9 +39,9 @@ This builds the binary, checks for `config.toml`, and runs `claude mcp add` with
 **Manual alternative** (if you need custom paths or scope):
 
 ```bash
-claude mcp add imap-mcp /path/to/dist/imap-mcp \
+claude mcp add imap-mcp \
   -s user \
-  --args -- --config /path/to/config.toml
+  -- /path/to/dist/imap-mcp --config /path/to/config.toml
 ```
 
 **Scope options:**
