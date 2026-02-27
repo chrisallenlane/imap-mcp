@@ -136,7 +136,7 @@ Manages persistent IMAP connections per account with lazy initialization and tra
 - **`GetClient(accountName)`** - Returns an IMAP client, connecting on first use. Detects dead cached connections (via `imapclient.Client.Closed()` channel) and reconnects automatically.
 - **`IsConnected(accountName)`** - Checks if an account has a live connection (returns false for dead cached connections)
 - **`Config()`** - Returns the manager's config
-- **`Close()`** - Closes all open connections
+- **`Close()`** - Closes all open connections (returns `error`)
 
 **Auto-Reconnect:**
 All read and write operations are wrapped in `withRetryResult` (generic, returns `(T, error)`) which:
@@ -145,7 +145,7 @@ All read and write operations are wrapped in `withRetryResult` (generic, returns
 3. If the operation fails and the connection is dead, evict the dead client, reconnect once, and retry
 4. If the retry also fails, return the error to the caller
 
-`withRetry` is a thin wrapper around `withRetryResult` for operations that return only an error.
+`withRetryResult` is a package-level generic function. `withRetry` is a method on `*ConnectionManager` that wraps `withRetryResult` for operations that return only an error.
 
 Reconnections are logged to stderr via `log.Printf`. The identity check `m.conns[account] == client` prevents race conditions when multiple goroutines detect the same dead connection.
 
@@ -238,6 +238,9 @@ make test
 
 # Run tests with coverage report
 make coverage
+
+# Run fuzz tests (FUZZTIME=30s by default)
+make fuzz
 
 # All checks (format, lint, vet, test)
 make check
@@ -373,7 +376,7 @@ Every new tool should have:
 - One tool per file, except `move_messages` and `copy_messages` which share a `transferTool` implementation (and their constructors) in `transfer_messages.go`
 - Tool interface defined in `tool.go`
 - MIME body parsing separated into `parse.go` (parsing concern) while `get_message.go` handles presentation
-- Shared formatting helpers (e.g., `formatFlags`, `formatMessage`, `formatUIDs`, `toIMAPUIDs`, `formatFlagNames`, `envelopeDate`) live in `format.go`
+- Shared formatting helpers (e.g., `formatFlags`, `formatMessage`, `formatUIDs`, `toIMAPUIDs`, `formatFlagNames`, `envelopeDate`) live in `format.go`; `formatAddresses` lives in `get_message.go`
 - Shared test helpers (e.g., `assertContains`) live in `helpers_test.go`
 - The `internal/imap/` package is organized by domain noun: `manager.go` (connection lifecycle + shared helpers), `message.go` (message operations), `mailbox.go` (mailbox operations), `retry.go` (reconnect logic)
 
