@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 	"time"
@@ -245,6 +246,172 @@ func FuzzFormatFullMessage(f *testing.F) {
 					"\"Message UID\", got:\n%s",
 				out,
 			)
+		}
+	})
+}
+
+func FuzzFormatAddresses(f *testing.F) {
+	// Standard address.
+	f.Add("Alice", "alice", "example.com", 1)
+
+	// No display name.
+	f.Add("", "bob", "example.com", 1)
+
+	// Empty mailbox (triggers group-start in go-imap).
+	f.Add("Group", "", "example.com", 1)
+
+	// Empty host (also triggers group-start).
+	f.Add("Group", "name", "", 1)
+
+	// Both empty (Addr() returns "").
+	f.Add("", "", "", 1)
+
+	// Multiple addresses.
+	f.Add("Alice", "alice", "a.com", 3)
+
+	// Special characters.
+	f.Add(
+		"O'Brien <fake>",
+		"user+tag",
+		"höst.de",
+		2,
+	)
+
+	// Unicode name.
+	f.Add("日本語", "test", "example.jp", 1)
+
+	f.Fuzz(func(
+		t *testing.T,
+		name, mailbox, host string,
+		count int,
+	) {
+		// Clamp address count to a reasonable range.
+		if count < 0 {
+			count = 0
+		}
+		if count > 10 {
+			count = 10
+		}
+
+		addrs := make([]imap.Address, count)
+		for i := range addrs {
+			addrs[i] = imap.Address{
+				Name:    name,
+				Mailbox: mailbox,
+				Host:    host,
+			}
+		}
+
+		out := formatAddresses(addrs)
+
+		// Output must never be empty.
+		if out == "" {
+			t.Error("output must not be empty")
+		}
+
+		// Empty address list returns "(unknown)".
+		if count == 0 && out != "(unknown)" {
+			t.Errorf(
+				"empty list should return "+
+					"\"(unknown)\", got %q",
+				out,
+			)
+		}
+
+		// When name is provided and Addr() is non-empty,
+		// output must contain angle brackets.
+		if count > 0 &&
+			name != "" &&
+			mailbox != "" &&
+			host != "" {
+			if !strings.Contains(out, "<") ||
+				!strings.Contains(out, ">") {
+				t.Errorf(
+					"expected angle brackets "+
+						"for named address, "+
+						"got %q",
+					out,
+				)
+			}
+		}
+
+		// Multiple addresses must be comma-separated.
+		if count > 1 {
+			if !strings.Contains(out, ", ") {
+				t.Errorf(
+					"expected comma separator "+
+						"for %d addresses, "+
+						"got %q",
+					count,
+					out,
+				)
+			}
+		}
+	})
+}
+
+func FuzzReadBodyPart(f *testing.F) {
+	// Empty input.
+	f.Add([]byte{})
+
+	// Small body.
+	f.Add([]byte("Hello, world!"))
+
+	// Body just under the limit.
+	f.Add(bytes.Repeat([]byte("A"), maxBodySize))
+
+	// Body exactly at the limit.
+	f.Add(bytes.Repeat([]byte("B"), maxBodySize+1))
+
+	// Body well over the limit.
+	f.Add(
+		bytes.Repeat([]byte("C"), maxBodySize+1000),
+	)
+
+	// Binary data.
+	f.Add([]byte{0x00, 0xFF, 0x01, 0xFE})
+
+	// Unicode.
+	f.Add([]byte("日本語テスト"))
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		out, err := readBodyPart(
+			bytes.NewReader(data),
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		maxLen := maxBodySize + len(truncationSuffix)
+		if len(out) > maxLen {
+			t.Errorf(
+				"output length %d exceeds max %d",
+				len(out),
+				maxLen,
+			)
+		}
+
+		// If input fits, output must match exactly.
+		if len(data) <= maxBodySize {
+			if out != string(data) {
+				t.Error(
+					"non-truncated output " +
+						"should match input",
+				)
+			}
+		}
+
+		// If truncated, suffix must be present.
+		if len(data) > maxBodySize {
+			if !strings.HasSuffix(
+				out,
+				truncationSuffix,
+			) {
+				t.Error(
+					"truncated output missing " +
+						"suffix",
+				)
+			}
 		}
 	})
 }

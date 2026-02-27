@@ -24,7 +24,8 @@ imap-mcp/
 ├── internal/                    # Private application packages
 │   ├── config/                  # TOML configuration parsing
 │   │   ├── config.go            # Config types and loader
-│   │   └── config_test.go       # Config parsing and validation tests
+│   │   ├── config_test.go       # Config parsing and validation tests
+│   │   └── config_fuzz_test.go  # Fuzz tests for config validation
 │   ├── imap/                    # IMAP connection manager
 │   │   ├── manager.go           # Lazy connection pooling per account
 │   │   └── manager_test.go      # Connection manager tests
@@ -36,7 +37,7 @@ imap-mcp/
 │       ├── tool.go              # Tool interface definition
 │       ├── format.go            # Shared formatting helpers (formatFlags, flagLabels)
 │       ├── html.go              # HTML-to-text conversion (HTMLToText)
-│       ├── helpers_test.go      # Shared test helpers (assertContains)
+│       ├── helpers_test.go      # Shared test helpers (assertContains, assertNotContains)
 │       ├── list_accounts.go     # list_accounts tool
 │       ├── list_accounts_test.go
 │       ├── list_mailboxes.go     # list_mailboxes tool
