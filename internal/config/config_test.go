@@ -171,6 +171,235 @@ func TestValidate_EmptyAccounts(t *testing.T) {
 	}
 }
 
+func TestValidate_SMTPEnabled_Valid(t *testing.T) {
+	cfg := &Config{
+		Accounts: map[string]Account{
+			"test": {
+				Host:        "imap.example.com",
+				Port:        993,
+				Username:    "user",
+				Password:    "pass",
+				SMTPEnabled: true,
+				SMTPHost:    "smtp.example.com",
+				SMTPPort:    587,
+			},
+		},
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Errorf("Validate() unexpected error: %v", err)
+	}
+}
+
+func TestValidate_SMTPEnabled_WithTLSMode(t *testing.T) {
+	for _, mode := range []string{"starttls", "implicit", "none", ""} {
+		t.Run("mode_"+mode, func(t *testing.T) {
+			cfg := &Config{
+				Accounts: map[string]Account{
+					"test": {
+						Host:        "imap.example.com",
+						Port:        993,
+						Username:    "user",
+						Password:    "pass",
+						SMTPEnabled: true,
+						SMTPHost:    "smtp.example.com",
+						SMTPPort:    587,
+						SMTPTLS:     mode,
+					},
+				},
+			}
+			if err := cfg.Validate(); err != nil {
+				t.Errorf(
+					"Validate() unexpected error for mode %q: %v",
+					mode,
+					err,
+				)
+			}
+		})
+	}
+}
+
+func TestValidate_SMTPEnabled_MissingHost(t *testing.T) {
+	cfg := &Config{
+		Accounts: map[string]Account{
+			"test": {
+				Host:        "imap.example.com",
+				Port:        993,
+				Username:    "user",
+				Password:    "pass",
+				SMTPEnabled: true,
+				SMTPPort:    587,
+			},
+		},
+	}
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("Validate() expected error for missing smtp_host")
+	}
+}
+
+func TestValidate_SMTPEnabled_MissingPort(t *testing.T) {
+	cfg := &Config{
+		Accounts: map[string]Account{
+			"test": {
+				Host:        "imap.example.com",
+				Port:        993,
+				Username:    "user",
+				Password:    "pass",
+				SMTPEnabled: true,
+				SMTPHost:    "smtp.example.com",
+			},
+		},
+	}
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("Validate() expected error for missing smtp_port")
+	}
+}
+
+func TestValidate_SMTPEnabled_InvalidTLSMode(t *testing.T) {
+	cfg := &Config{
+		Accounts: map[string]Account{
+			"test": {
+				Host:        "imap.example.com",
+				Port:        993,
+				Username:    "user",
+				Password:    "pass",
+				SMTPEnabled: true,
+				SMTPHost:    "smtp.example.com",
+				SMTPPort:    587,
+				SMTPTLS:     "invalid",
+			},
+		},
+	}
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("Validate() expected error for invalid smtp_tls")
+	}
+}
+
+func TestValidate_SMTPDisabled_SkipsValidation(t *testing.T) {
+	cfg := &Config{
+		Accounts: map[string]Account{
+			"test": {
+				Host:     "imap.example.com",
+				Port:     993,
+				Username: "user",
+				Password: "pass",
+				// SMTPEnabled defaults to false; SMTP fields missing
+			},
+		},
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Errorf("Validate() unexpected error: %v", err)
+	}
+}
+
+func TestValidate_SMTPDisabled_WithPartialFields(t *testing.T) {
+	cfg := &Config{
+		Accounts: map[string]Account{
+			"test": {
+				Host:     "imap.example.com",
+				Port:     993,
+				Username: "user",
+				Password: "pass",
+				SMTPHost: "smtp.example.com",
+				// SMTPEnabled false, SMTPPort missing — should still pass
+			},
+		},
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Errorf("Validate() unexpected error: %v", err)
+	}
+}
+
+func TestHasSMTPEnabled(t *testing.T) {
+	tests := []struct {
+		name     string
+		accounts map[string]Account
+		want     bool
+	}{
+		{
+			name: "no accounts have smtp",
+			accounts: map[string]Account{
+				"a": {Host: "h", Port: 1, Username: "u", Password: "p"},
+			},
+			want: false,
+		},
+		{
+			name: "one account has smtp",
+			accounts: map[string]Account{
+				"a": {Host: "h", Port: 1, Username: "u", Password: "p"},
+				"b": {
+					Host: "h", Port: 1, Username: "u", Password: "p",
+					SMTPEnabled: true, SMTPHost: "s", SMTPPort: 587,
+				},
+			},
+			want: true,
+		},
+		{
+			name: "all accounts have smtp",
+			accounts: map[string]Account{
+				"a": {
+					Host: "h", Port: 1, Username: "u", Password: "p",
+					SMTPEnabled: true, SMTPHost: "s", SMTPPort: 587,
+				},
+			},
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{Accounts: tt.accounts}
+			if got := cfg.HasSMTPEnabled(); got != tt.want {
+				t.Errorf("HasSMTPEnabled() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestLoad_SMTPConfig(t *testing.T) {
+	content := `
+[accounts.test]
+host         = "imap.example.com"
+port         = 993
+username     = "user"
+password     = "pass"
+tls          = true
+smtp_enabled = true
+smtp_host    = "smtp.example.com"
+smtp_port    = 587
+smtp_tls     = "starttls"
+smtp_from    = "sender@example.com"
+save_sent    = true
+`
+	path := writeTempConfig(t, content)
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() unexpected error: %v", err)
+	}
+
+	acct := cfg.Accounts["test"]
+	if !acct.SMTPEnabled {
+		t.Error("SMTPEnabled should be true")
+	}
+	if acct.SMTPHost != "smtp.example.com" {
+		t.Errorf("SMTPHost = %q, want %q", acct.SMTPHost, "smtp.example.com")
+	}
+	if acct.SMTPPort != 587 {
+		t.Errorf("SMTPPort = %d, want %d", acct.SMTPPort, 587)
+	}
+	if acct.SMTPTLS != "starttls" {
+		t.Errorf("SMTPTLS = %q, want %q", acct.SMTPTLS, "starttls")
+	}
+	if acct.SMTPFrom != "sender@example.com" {
+		t.Errorf("SMTPFrom = %q, want %q", acct.SMTPFrom, "sender@example.com")
+	}
+	if !acct.SaveSent {
+		t.Error("SaveSent should be true")
+	}
+}
+
 func TestLoad_TLSDefault(t *testing.T) {
 	content := `
 [accounts.test]
