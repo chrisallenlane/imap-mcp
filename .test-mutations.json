@@ -52,36 +52,93 @@
       "insights": []
     },
     "internal/server/types.go": {
-      "status": "pending",
+      "status": "completed",
       "covering_tests": ["internal/server/server_test.go"],
-      "last_tested": null,
+      "last_tested": "2026-02-26T00:10:00Z",
       "mutations_by_type": {},
       "mutation_score": null,
-      "insights": []
+      "insights": ["Skipped: pure type definitions with no logic to mutate"]
     },
     "internal/tools/format.go": {
-      "status": "pending",
+      "status": "completed",
       "covering_tests": ["internal/tools/format_test.go"],
-      "last_tested": null,
-      "mutations_by_type": {},
-      "mutation_score": null,
-      "insights": []
+      "last_tested": "2026-02-26T00:20:00Z",
+      "mutations_by_type": {
+        "relational": {"total": 7, "killed": 7, "survived": 0, "examples": []},
+        "logical": {"total": 1, "killed": 1, "survived": 0, "examples": []},
+        "constant": {"total": 14, "killed": 11, "survived": 3, "examples": [
+          {"line": 77, "original": "%-5d", "mutated": "%-6d", "result": "survived_cosmetic", "test_that_caught_it": null},
+          {"line": 77, "original": "%-25s", "mutated": "%-26s", "result": "survived_cosmetic", "test_that_caught_it": null},
+          {"line": 72, "original": "  [%s]", "mutated": " [%s]", "result": "survived_cosmetic", "test_that_caught_it": null}
+        ]},
+        "arithmetic": {"total": 3, "killed": 3, "survived": 0, "examples": []}
+      },
+      "mutation_score": 87.0,
+      "insights": ["All 3 survivors are cosmetic formatting changes (column widths, spacing). Testing exact format widths would be brittle."]
     },
     "internal/tools/html.go": {
-      "status": "pending",
+      "status": "completed",
       "covering_tests": ["internal/tools/html_test.go"],
-      "last_tested": null,
-      "mutations_by_type": {},
-      "mutation_score": null,
-      "insights": []
+      "last_tested": "2026-02-26T00:10:00Z",
+      "mutations_by_type": {
+        "relational": {
+          "total": 14,
+          "killed": 13,
+          "survived": 1,
+          "examples": [
+            {"line": 67, "original": "len(stack) > 0", "mutated": "len(stack) != 0", "result": "survived_equivalent", "test_that_caught_it": null}
+          ]
+        },
+        "logical": {
+          "total": 4,
+          "killed": 4,
+          "survived": 0,
+          "examples": []
+        },
+        "constant": {
+          "total": 7,
+          "killed": 5,
+          "survived": 2,
+          "examples": [
+            {"line": 37, "original": "\\n{3,}", "mutated": "\\n{2,}", "result": "survived_equivalent", "test_that_caught_it": null},
+            {"line": 48, "original": "(HTML body could not be parsed)", "mutated": "", "result": "survived_dead_code", "test_that_caught_it": null}
+          ]
+        },
+        "arithmetic": {
+          "total": 2,
+          "killed": 2,
+          "survived": 0,
+          "examples": []
+        },
+        "statement": {
+          "total": 2,
+          "killed": 2,
+          "survived": 0,
+          "examples": []
+        }
+      },
+      "mutation_score": 89.7,
+      "insights": ["All 3 survivors are semantically equivalent mutations or unreachable code (nethtml.Parse never errors). Effective score: 100%"]
     },
     "internal/tools/parse.go": {
-      "status": "pending",
+      "status": "completed",
       "covering_tests": ["internal/tools/get_message_test.go"],
-      "last_tested": null,
-      "mutations_by_type": {},
-      "mutation_score": null,
-      "insights": []
+      "last_tested": "2026-02-26T00:30:00Z",
+      "mutations_by_type": {
+        "relational": {"total": 5, "killed": 5, "survived": 0, "examples": []},
+        "logical": {"total": 11, "killed": 5, "survived": 6, "examples": [
+          {"line": 86, "original": "||", "mutated": "&&", "result": "survived", "test_that_caught_it": "TestGetMessage_AttachmentByMediaType (after fix)"},
+          {"line": 88, "original": "!strings.HasPrefix", "mutated": "strings.HasPrefix", "result": "survived", "test_that_caught_it": "TestGetMessage_AttachmentByMediaType (after fix)"}
+        ]},
+        "constant": {"total": 6, "killed": 2, "survived": 4, "examples": [
+          {"line": 103, "original": "unnamed", "mutated": "default", "result": "survived", "test_that_caught_it": "TestGetMessage_UnnamedAttachment (after fix)"}
+        ]},
+        "statement": {"total": 5, "killed": 4, "survived": 1, "examples": [
+          {"line": 150, "original": "parsedBody{attachments: attachments}", "mutated": "parsedBody{}", "result": "survived", "test_that_caught_it": "TestGetMessage_AttachmentOnlyWithDetails (after fix)"}
+        ]}
+      },
+      "mutation_score": 41.0,
+      "insights": ["Added 3 tests: AttachmentByMediaType, UnnamedAttachment, AttachmentOnlyWithDetails. Key gaps were in attachment detection heuristic and unnamed filename fallback. Remaining survivors are error-swallowing (intentional) and constant self-references."]
     },
     "internal/tools/list_accounts.go": {
       "status": "pending",
@@ -108,12 +165,17 @@
       "insights": []
     },
     "internal/tools/get_message.go": {
-      "status": "pending",
+      "status": "completed",
       "covering_tests": ["internal/tools/get_message_test.go"],
-      "last_tested": null,
-      "mutations_by_type": {},
-      "mutation_score": null,
-      "insights": []
+      "last_tested": "2026-02-26T00:45:00Z",
+      "mutations_by_type": {
+        "relational": {"total": 13, "killed": 13, "survived": 0, "examples": []},
+        "logical": {"total": 1, "killed": 1, "survived": 0, "examples": []},
+        "arithmetic": {"total": 4, "killed": 4, "survived": 0, "examples": []},
+        "constant": {"total": 14, "killed": 14, "survived": 0, "examples": []}
+      },
+      "mutation_score": 100.0,
+      "insights": ["Tightened 2 assertions: parentheses in 'no envelope data' check, and added formatSize boundary test at 1023 bytes. Score improved from 93.75% to 100%."]
     },
     "internal/tools/search_messages.go": {
       "status": "pending",
@@ -166,10 +228,10 @@
   },
   "global_statistics": {
     "total_modules": 20,
-    "completed_modules": 0,
-    "total_mutations": 0,
-    "total_killed": 0,
-    "total_survived": 0,
-    "overall_score": 0.0
+    "completed_modules": 2,
+    "total_mutations": 29,
+    "total_killed": 26,
+    "total_survived": 3,
+    "overall_score": 89.7
   }
 }
