@@ -83,23 +83,11 @@ func TestSaveDraft_InputSchema(t *testing.T) {
 		&mockDraftSaver{},
 	)
 	schema := tool.InputSchema()
-	if schema["type"] != "object" {
-		t.Errorf(
-			"schema type = %v, want object",
-			schema["type"],
-		)
+	expectedProps := []string{
+		"account", "to", "cc", "bcc", "subject", "body", "attachments",
 	}
-
-	required, ok := schema["required"].([]string)
-	if !ok {
-		t.Fatal("required should be []string")
-	}
-	if len(required) != 1 || required[0] != "account" {
-		t.Errorf(
-			"required = %v, want [account]",
-			required,
-		)
-	}
+	expectedRequired := []string{"account"}
+	assertSchema(t, schema, expectedProps, expectedRequired)
 }
 
 func TestSaveDraft_Success(t *testing.T) {

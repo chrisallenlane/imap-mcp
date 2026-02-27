@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net/mail"
+	"strings"
 	"testing"
 	"time"
 
@@ -141,13 +143,22 @@ func TestReplyMessage_InputSchema(t *testing.T) {
 		&mockReplySender{config: replyConfig()},
 		&mockReplySentSaver{},
 	)
-	schema := tool.InputSchema()
-	if schema["type"] != "object" {
-		t.Errorf(
-			"schema type = %v, want object",
-			schema["type"],
-		)
-	}
+	assertSchema(
+		t,
+		tool.InputSchema(),
+		[]string{
+			"account",
+			"mailbox",
+			"uid",
+			"mode",
+			"to",
+			"cc",
+			"bcc",
+			"body",
+			"include_attachments",
+		},
+		[]string{"account", "mailbox", "uid", "mode", "body"},
+	)
 }
 
 func TestReplyMessage_Reply(t *testing.T) {
@@ -188,14 +199,45 @@ func TestReplyMessage_Reply(t *testing.T) {
 		"sender@example.com",
 	)
 
-	// Verify the composed message contains expected content.
-	msgStr := string(sender.sentMsg)
-	assertContains(t, msgStr, "Re: Original Subject")
-	assertContains(
-		t, msgStr, "Thanks for your message!",
+	// Parse the composed message to check structured headers
+	// rather than raw wire bytes.
+	parsed, err := mail.ReadMessage(
+		bytes.NewReader(sender.sentMsg),
 	)
+	if err != nil {
+		t.Fatalf(
+			"failed to parse composed message: %v",
+			err,
+		)
+	}
+
+	// Subject header should carry the Re: prefix.
+	subject := parsed.Header.Get("Subject")
+	if !strings.Contains(subject, "Re: Original Subject") {
+		t.Errorf(
+			"Subject = %q, want to contain %q",
+			subject,
+			"Re: Original Subject",
+		)
+	}
+
+	// In-Reply-To should reference the source message ID,
+	// angle-bracket wrapped, checked as a structured header
+	// value rather than a raw "Header: value" substring.
+	inReplyTo := parsed.Header.Get("In-Reply-To")
+	if inReplyTo != "<original-msg-id@example.com>" {
+		t.Errorf(
+			"In-Reply-To = %q, want %q",
+			inReplyTo,
+			"<original-msg-id@example.com>",
+		)
+	}
+
+	// Body content is fine as a substring match.
 	assertContains(
-		t, msgStr, "In-Reply-To: <original-msg-id@example.com>",
+		t,
+		string(sender.sentMsg),
+		"Thanks for your message!",
 	)
 }
 

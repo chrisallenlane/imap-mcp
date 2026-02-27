@@ -15,16 +15,18 @@ import (
 // mockMessageSearcher is a test double for the
 // messageSearcher interface.
 type mockMessageSearcher struct {
-	uids      []imap.UID
-	messages  []*imapclient.FetchMessageBuffer
-	searchErr error
-	fetchErr  error
+	uids             []imap.UID
+	messages         []*imapclient.FetchMessageBuffer
+	searchErr        error
+	fetchErr         error
+	capturedCriteria *imap.SearchCriteria
 }
 
 func (m *mockMessageSearcher) SearchMessages(
 	_, _ string,
-	_ *imap.SearchCriteria,
+	criteria *imap.SearchCriteria,
 ) ([]imap.UID, error) {
+	m.capturedCriteria = criteria
 	if m.searchErr != nil {
 		return nil, m.searchErr
 	}
@@ -132,6 +134,31 @@ func TestSearchMessages_Success(t *testing.T) {
 	assertContains(t, result, "alice@example.com")
 	assertContains(t, result, "bob@work.com")
 	assertContains(t, result, "carol@test.org")
+
+	// Verify the from:"alice" parameter was passed
+	// through to SearchMessages as a From header
+	// criterion, not silently discarded.
+	if mock.capturedCriteria == nil {
+		t.Fatal(
+			"SearchMessages was not called with " +
+				"any criteria",
+		)
+	}
+	if len(mock.capturedCriteria.Header) != 1 {
+		t.Fatalf(
+			"expected 1 header criterion, got %d",
+			len(mock.capturedCriteria.Header),
+		)
+	}
+	if mock.capturedCriteria.Header[0].Key != "From" ||
+		mock.capturedCriteria.Header[0].Value != "alice" {
+		t.Errorf(
+			"expected From:alice header criterion, "+
+				"got %s:%s",
+			mock.capturedCriteria.Header[0].Key,
+			mock.capturedCriteria.Header[0].Value,
+		)
+	}
 }
 
 func TestSearchMessages_NewestFirst(t *testing.T) {
@@ -416,6 +443,69 @@ func TestSearchMessages_ExecuteWithMultipleCriteria(t *testing.T) {
 
 	assertContains(t, result, "Combined search")
 	assertContains(t, result, "1 match, showing all")
+
+	// Verify that all four criteria (from, subject, since,
+	// seen) were passed through to SearchMessages.
+	c := mock.capturedCriteria
+	if c == nil {
+		t.Fatal(
+			"SearchMessages was not called with " +
+				"any criteria",
+		)
+	}
+
+	// Expect From and Subject headers.
+	foundFrom := false
+	foundSubject := false
+	for _, h := range c.Header {
+		switch h.Key {
+		case "From":
+			if h.Value == "alice" {
+				foundFrom = true
+			}
+		case "Subject":
+			if h.Value == "meeting" {
+				foundSubject = true
+			}
+		}
+	}
+	if !foundFrom {
+		t.Error(
+			"expected From:alice header criterion " +
+				"in captured criteria",
+		)
+	}
+	if !foundSubject {
+		t.Error(
+			"expected Subject:meeting header criterion " +
+				"in captured criteria",
+		)
+	}
+
+	// Expect Since date.
+	expectedSince := time.Date(
+		2025, 2, 1, 0, 0, 0, 0, time.UTC,
+	)
+	if !c.Since.Equal(expectedSince) {
+		t.Errorf(
+			"Since = %v, want %v",
+			c.Since,
+			expectedSince,
+		)
+	}
+
+	// Expect \Seen flag (seen:true).
+	foundSeen := false
+	for _, f := range c.Flag {
+		if f == imap.FlagSeen {
+			foundSeen = true
+		}
+	}
+	if !foundSeen {
+		t.Error(
+			"expected FlagSeen in captured criteria Flag",
+		)
+	}
 }
 
 func TestSearchMessages_CapAt100(t *testing.T) {

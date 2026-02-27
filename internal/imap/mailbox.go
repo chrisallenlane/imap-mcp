@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	imap "github.com/emersion/go-imap/v2"
-	"github.com/emersion/go-imap/v2/imapclient"
 )
 
 // ListMailboxes returns all mailboxes for the named account.
@@ -15,7 +14,7 @@ func (m *ConnectionManager) ListMailboxes(
 	return withRetryResult(
 		m,
 		account,
-		func(c *imapclient.Client) ([]*imap.ListData, error) {
+		func(c imapClient) ([]*imap.ListData, error) {
 			return c.List("", "*", nil).Collect()
 		},
 	)
@@ -29,7 +28,7 @@ func (m *ConnectionManager) ExamineMailbox(
 	return withRetryResult(
 		m,
 		account,
-		func(c *imapclient.Client) (*imap.SelectData, error) {
+		func(c imapClient) (*imap.SelectData, error) {
 			return selectMailbox(c, mailbox, true)
 		},
 	)
@@ -43,9 +42,7 @@ func (m *ConnectionManager) MailboxStatus(
 	return withRetryResult(
 		m,
 		account,
-		func(
-			c *imapclient.Client,
-		) (*imap.StatusData, error) {
+		func(c imapClient) (*imap.StatusData, error) {
 			return c.Status(
 				mailbox,
 				&imap.StatusOptions{
@@ -63,7 +60,7 @@ func (m *ConnectionManager) CreateMailbox(
 ) error {
 	return m.withRetry(
 		account,
-		func(c *imapclient.Client) error {
+		func(c imapClient) error {
 			if err := c.Create(name, nil).Wait(); err != nil {
 				return fmt.Errorf(
 					"failed to create mailbox: %w",
@@ -81,7 +78,7 @@ func (m *ConnectionManager) DeleteMailbox(
 ) error {
 	return m.withRetry(
 		account,
-		func(c *imapclient.Client) error {
+		func(c imapClient) error {
 			if err := c.Delete(name).Wait(); err != nil {
 				return fmt.Errorf(
 					"failed to delete mailbox: %w",

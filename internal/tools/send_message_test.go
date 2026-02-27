@@ -101,37 +101,25 @@ func TestSendMessage_InputSchema(t *testing.T) {
 		&mockEmailSender{config: smtpEnabledConfig()},
 		&mockSentSaver{},
 	)
-	schema := tool.InputSchema()
-	if schema["type"] != "object" {
-		t.Errorf(
-			"schema type = %v, want object",
-			schema["type"],
-		)
-	}
-
-	required, ok := schema["required"].([]string)
-	if !ok {
-		t.Fatal("required should be []string")
-	}
-
-	requiredSet := make(map[string]bool)
-	for _, r := range required {
-		requiredSet[r] = true
-	}
-
-	for _, field := range []string{
-		"account",
-		"to",
-		"subject",
-		"body",
-	} {
-		if !requiredSet[field] {
-			t.Errorf(
-				"%q should be in required fields",
-				field,
-			)
-		}
-	}
+	assertSchema(
+		t,
+		tool.InputSchema(),
+		[]string{
+			"account",
+			"to",
+			"cc",
+			"bcc",
+			"subject",
+			"body",
+			"attachments",
+		},
+		[]string{
+			"account",
+			"to",
+			"subject",
+			"body",
+		},
+	)
 }
 
 func TestSendMessage_Success(t *testing.T) {

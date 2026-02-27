@@ -26,7 +26,7 @@ func newTestConnectionManager() *ConnectionManager {
 	return NewConnectionManager(cfg)
 }
 
-// newTestClient creates an imapclient.Client backed by a
+// newTestClient creates an *imapclient.Client backed by a
 // net.Pipe. Closing serverConn causes the client's read
 // goroutine to exit, which closes the Closed() channel.
 // The caller must close serverConn to avoid goroutine leaks.
@@ -37,6 +37,18 @@ func newTestClient(
 	clientConn, serverConn := net.Pipe()
 	client := imapclient.New(clientConn, nil)
 	return client, serverConn
+}
+
+// injectClient wraps raw into a clientAdapter and stores it
+// as the named account's connection in mgr.
+func injectClient(
+	mgr *ConnectionManager,
+	account string,
+	raw *imapclient.Client,
+) {
+	mgr.mu.Lock()
+	mgr.conns[account] = &clientAdapter{raw}
+	mgr.mu.Unlock()
 }
 
 func TestClose_NoConnections(t *testing.T) {
@@ -55,10 +67,7 @@ func TestClose_WithConnections(t *testing.T) {
 	client, serverConn := newTestClient(t)
 	defer serverConn.Close()
 
-	// Inject the client into the manager's connection map.
-	mgr.mu.Lock()
-	mgr.conns["gmail"] = client
-	mgr.mu.Unlock()
+	injectClient(mgr, "gmail", client)
 
 	if err := mgr.Close(); err != nil {
 		t.Errorf("Close() unexpected error: %v", err)
@@ -138,7 +147,8 @@ func TestIsConnectionClosed_Open(t *testing.T) {
 	defer serverConn.Close()
 	defer client.Close()
 
-	if isConnectionClosed(client) {
+	adapter := &clientAdapter{client}
+	if isConnectionClosed(adapter) {
 		t.Error(
 			"isConnectionClosed() = true, " +
 				"want false for open connection",
@@ -162,7 +172,8 @@ func TestIsConnectionClosed_Closed(t *testing.T) {
 		)
 	}
 
-	if !isConnectionClosed(client) {
+	adapter := &clientAdapter{client}
+	if !isConnectionClosed(adapter) {
 		t.Error(
 			"isConnectionClosed() = false after " +
 				"Closed() channel signaled",
@@ -174,10 +185,7 @@ func TestGetClient_EvictsDeadConnection(t *testing.T) {
 	mgr := newTestConnectionManager()
 	client, serverConn := newTestClient(t)
 
-	// Inject the client into the manager's connection map.
-	mgr.mu.Lock()
-	mgr.conns["gmail"] = client
-	mgr.mu.Unlock()
+	injectClient(mgr, "gmail", client)
 
 	// Kill the connection.
 	serverConn.Close()
@@ -212,10 +220,7 @@ func TestIsConnected_DeadConnection(t *testing.T) {
 	mgr := newTestConnectionManager()
 	client, serverConn := newTestClient(t)
 
-	// Inject the client into the manager's connection map.
-	mgr.mu.Lock()
-	mgr.conns["gmail"] = client
-	mgr.mu.Unlock()
+	injectClient(mgr, "gmail", client)
 
 	// Connection is alive -- should report true.
 	if !mgr.IsConnected("gmail") {
