@@ -1,0 +1,175 @@
+{
+  "version": "1.0",
+  "test_command": "make test",
+  "last_updated": "2026-02-26T00:00:00Z",
+  "modules": {
+    "internal/config/config.go": {
+      "status": "pending",
+      "covering_tests": ["internal/config/config_test.go"],
+      "last_tested": null,
+      "mutations_by_type": {},
+      "mutation_score": null,
+      "insights": []
+    },
+    "internal/imap/manager.go": {
+      "status": "pending",
+      "covering_tests": ["internal/imap/manager_test.go"],
+      "last_tested": null,
+      "mutations_by_type": {},
+      "mutation_score": null,
+      "insights": []
+    },
+    "internal/imap/retry.go": {
+      "status": "pending",
+      "covering_tests": ["internal/imap/retry_test.go"],
+      "last_tested": null,
+      "mutations_by_type": {},
+      "mutation_score": null,
+      "insights": []
+    },
+    "internal/imap/message.go": {
+      "status": "pending",
+      "covering_tests": ["internal/imap/message_test.go"],
+      "last_tested": null,
+      "mutations_by_type": {},
+      "mutation_score": null,
+      "insights": []
+    },
+    "internal/imap/mailbox.go": {
+      "status": "pending",
+      "covering_tests": ["internal/imap/mailbox_test.go"],
+      "last_tested": null,
+      "mutations_by_type": {},
+      "mutation_score": null,
+      "insights": []
+    },
+    "internal/server/server.go": {
+      "status": "pending",
+      "covering_tests": ["internal/server/server_test.go"],
+      "last_tested": null,
+      "mutations_by_type": {},
+      "mutation_score": null,
+      "insights": []
+    },
+    "internal/server/types.go": {
+      "status": "pending",
+      "covering_tests": ["internal/server/server_test.go"],
+      "last_tested": null,
+      "mutations_by_type": {},
+      "mutation_score": null,
+      "insights": []
+    },
+    "internal/tools/format.go": {
+      "status": "pending",
+      "covering_tests": ["internal/tools/format_test.go"],
+      "last_tested": null,
+      "mutations_by_type": {},
+      "mutation_score": null,
+      "insights": []
+    },
+    "internal/tools/html.go": {
+      "status": "pending",
+      "covering_tests": ["internal/tools/html_test.go"],
+      "last_tested": null,
+      "mutations_by_type": {},
+      "mutation_score": null,
+      "insights": []
+    },
+    "internal/tools/parse.go": {
+      "status": "pending",
+      "covering_tests": ["internal/tools/get_message_test.go"],
+      "last_tested": null,
+      "mutations_by_type": {},
+      "mutation_score": null,
+      "insights": []
+    },
+    "internal/tools/list_accounts.go": {
+      "status": "pending",
+      "covering_tests": ["internal/tools/list_accounts_test.go"],
+      "last_tested": null,
+      "mutations_by_type": {},
+      "mutation_score": null,
+      "insights": []
+    },
+    "internal/tools/list_mailboxes.go": {
+      "status": "pending",
+      "covering_tests": ["internal/tools/list_mailboxes_test.go"],
+      "last_tested": null,
+      "mutations_by_type": {},
+      "mutation_score": null,
+      "insights": []
+    },
+    "internal/tools/list_messages.go": {
+      "status": "pending",
+      "covering_tests": ["internal/tools/list_messages_test.go"],
+      "last_tested": null,
+      "mutations_by_type": {},
+      "mutation_score": null,
+      "insights": []
+    },
+    "internal/tools/get_message.go": {
+      "status": "pending",
+      "covering_tests": ["internal/tools/get_message_test.go"],
+      "last_tested": null,
+      "mutations_by_type": {},
+      "mutation_score": null,
+      "insights": []
+    },
+    "internal/tools/search_messages.go": {
+      "status": "pending",
+      "covering_tests": ["internal/tools/search_messages_test.go"],
+      "last_tested": null,
+      "mutations_by_type": {},
+      "mutation_score": null,
+      "insights": []
+    },
+    "internal/tools/mark_messages.go": {
+      "status": "pending",
+      "covering_tests": ["internal/tools/mark_messages_test.go"],
+      "last_tested": null,
+      "mutations_by_type": {},
+      "mutation_score": null,
+      "insights": []
+    },
+    "internal/tools/transfer_messages.go": {
+      "status": "pending",
+      "covering_tests": ["internal/tools/transfer_messages_test.go"],
+      "last_tested": null,
+      "mutations_by_type": {},
+      "mutation_score": null,
+      "insights": []
+    },
+    "internal/tools/delete_messages.go": {
+      "status": "pending",
+      "covering_tests": ["internal/tools/delete_messages_test.go"],
+      "last_tested": null,
+      "mutations_by_type": {},
+      "mutation_score": null,
+      "insights": []
+    },
+    "internal/tools/create_mailbox.go": {
+      "status": "pending",
+      "covering_tests": ["internal/tools/create_mailbox_test.go"],
+      "last_tested": null,
+      "mutations_by_type": {},
+      "mutation_score": null,
+      "insights": []
+    },
+    "internal/tools/delete_mailbox.go": {
+      "status": "pending",
+      "covering_tests": ["internal/tools/delete_mailbox_test.go"],
+      "last_tested": null,
+      "mutations_by_type": {},
+      "mutation_score": null,
+      "insights": []
+    }
+  },
+  "global_statistics": {
+    "total_modules": 20,
+    "completed_modules": 0,
+    "total_mutations": 0,
+    "total_killed": 0,
+    "total_survived": 0,
+    "overall_score": 0.0
+  }
+}
