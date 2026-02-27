@@ -7,6 +7,9 @@ dist_dir := ./dist
 GO    := go
 MKDIR := mkdir -p
 
+# config
+CONFIG ?= $(CURDIR)/config.toml
+
 # build flags
 BUILD_FLAGS := -ldflags="-s -w" -trimpath
 
@@ -23,15 +26,15 @@ install: build
 ## setup: register imap-mcp with Claude Code
 .PHONY: setup
 setup: build
-	@if [ ! -f config.toml ]; then \
-		echo "Error: config.toml not found."; \
+	@if [ ! -f "$(CONFIG)" ]; then \
+		echo "Error: $(CONFIG) not found."; \
 		echo "  cp config.example.toml config.toml"; \
 		echo "  Edit config.toml with your IMAP credentials."; \
 		exit 1; \
 	fi
 	claude mcp add imap-mcp \
 		-s user \
-		-- $(CURDIR)/dist/imap-mcp --config $(CURDIR)/config.toml
+		-- $(CURDIR)/dist/imap-mcp --config $(CONFIG)
 	@echo ""
 	@echo "Done. imap-mcp is now available in Claude Code."
 	@echo "Verify with: claude mcp list"
