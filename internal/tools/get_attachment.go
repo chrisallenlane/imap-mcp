@@ -115,10 +115,11 @@ func (t *GetAttachment) Execute(
 		)
 	}
 
-	messages, err := t.getter.FetchMessagesByUID(
+	msg, err := fetchSingleMessage(
+		t.getter,
 		params.Account,
 		params.Mailbox,
-		[]imap.UID{uid},
+		uid,
 		&imap.FetchOptions{
 			UID: true,
 			BodySection: []*imap.FetchItemBodySection{
@@ -127,18 +128,11 @@ func (t *GetAttachment) Execute(
 		},
 	)
 	if err != nil {
-		return "", fmt.Errorf(
-			"failed to fetch message: %w",
-			err,
-		)
-	}
-
-	if len(messages) == 0 {
-		return "", fmt.Errorf("message not found")
+		return "", err
 	}
 
 	bodySection := &imap.FetchItemBodySection{}
-	bodyBytes := messages[0].FindBodySection(bodySection)
+	bodyBytes := msg.FindBodySection(bodySection)
 	if bodyBytes == nil {
 		return "", fmt.Errorf(
 			"message has no body data",

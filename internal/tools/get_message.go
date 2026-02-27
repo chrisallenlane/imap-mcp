@@ -21,6 +21,32 @@ type messageGetter interface {
 	) ([]*imapclient.FetchMessageBuffer, error)
 }
 
+// fetchSingleMessage fetches a single message by UID,
+// returning an error if the message is not found.
+func fetchSingleMessage(
+	getter messageGetter,
+	account, mailbox string,
+	uid imap.UID,
+	options *imap.FetchOptions,
+) (*imapclient.FetchMessageBuffer, error) {
+	messages, err := getter.FetchMessagesByUID(
+		account,
+		mailbox,
+		[]imap.UID{uid},
+		options,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to fetch message: %w",
+			err,
+		)
+	}
+	if len(messages) == 0 {
+		return nil, fmt.Errorf("message not found")
+	}
+	return messages[0], nil
+}
+
 // GetMessage is an MCP tool that retrieves a full email
 // message by UID.
 type GetMessage struct {
@@ -102,10 +128,11 @@ func (t *GetMessage) Execute(
 		)
 	}
 
-	messages, err := t.getter.FetchMessagesByUID(
+	msg, err := fetchSingleMessage(
+		t.getter,
 		params.Account,
 		params.Mailbox,
-		[]imap.UID{uid},
+		uid,
 		&imap.FetchOptions{
 			Envelope: true,
 			Flags:    true,
@@ -116,17 +143,9 @@ func (t *GetMessage) Execute(
 		},
 	)
 	if err != nil {
-		return "", fmt.Errorf(
-			"failed to fetch message: %w",
-			err,
-		)
+		return "", err
 	}
 
-	if len(messages) == 0 {
-		return "", fmt.Errorf("message not found")
-	}
-
-	msg := messages[0]
 	return formatFullMessage(
 		params.Account,
 		params.Mailbox,

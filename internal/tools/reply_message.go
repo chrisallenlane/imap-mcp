@@ -293,10 +293,11 @@ func (t *ReplyMessage) fetchSource(
 	account, mailbox string,
 	uid imaplib.UID,
 ) (*imapclient.FetchMessageBuffer, sourceBody, error) {
-	messages, err := t.getter.FetchMessagesByUID(
+	msg, err := fetchSingleMessage(
+		t.getter,
 		account,
 		mailbox,
-		[]imaplib.UID{uid},
+		uid,
 		&imaplib.FetchOptions{
 			Envelope: true,
 			Flags:    true,
@@ -307,18 +308,9 @@ func (t *ReplyMessage) fetchSource(
 		},
 	)
 	if err != nil {
-		return nil, sourceBody{}, fmt.Errorf(
-			"failed to fetch source message: %w",
-			err,
-		)
-	}
-	if len(messages) == 0 {
-		return nil, sourceBody{}, fmt.Errorf(
-			"source message not found",
-		)
+		return nil, sourceBody{}, err
 	}
 
-	msg := messages[0]
 	bodySection := &imaplib.FetchItemBodySection{}
 	rawBytes := msg.FindBodySection(bodySection)
 

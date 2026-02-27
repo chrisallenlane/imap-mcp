@@ -32,27 +32,30 @@ func buildReplyParams(
 	case "reply":
 		cp.To = replyTo(env, overrideTo)
 		cp.CC = cc
-		cp.Subject = addPrefix("Re", env.Subject)
-		cp.InReplyTo = env.MessageID
-		cp.References = buildReferences(env)
-		cp.Body = quoteReply(userBody, env, srcBody)
 
 	case "reply_all":
-		toAddrs, ccAddrs := replyAllRecipients(
+		cp.To, cp.CC = replyAllRecipients(
 			env, from, overrideTo, cc,
 		)
-		cp.To = toAddrs
-		cp.CC = ccAddrs
-		cp.Subject = addPrefix("Re", env.Subject)
-		cp.InReplyTo = env.MessageID
-		cp.References = buildReferences(env)
-		cp.Body = quoteReply(userBody, env, srcBody)
 
 	case "forward":
 		cp.To = overrideTo
 		cp.CC = cc
+	}
+
+	// Set subject, body, and threading headers by mode.
+	if mode == "forward" {
 		cp.Subject = addPrefix("Fwd", env.Subject)
 		cp.Body = quoteForward(userBody, env, srcBody)
+	} else {
+		cp.Subject = addPrefix("Re", env.Subject)
+		cp.InReplyTo = env.MessageID
+		// References: built from Message-ID only
+		// (not directly available in Envelope).
+		if env.MessageID != "" {
+			cp.References = []string{env.MessageID}
+		}
+		cp.Body = quoteReply(userBody, env, srcBody)
 	}
 
 	return cp, collectRecipients(
@@ -129,19 +132,6 @@ func envelopeAddrs(addrs []imaplib.Address) []string {
 		}
 	}
 	return result
-}
-
-// buildReferences builds the References header value from
-// the source message's References and Message-ID.
-func buildReferences(
-	env *imaplib.Envelope,
-) []string {
-	// References header is not directly in Envelope,
-	// so we build from Message-ID only.
-	if env.MessageID != "" {
-		return []string{env.MessageID}
-	}
-	return nil
 }
 
 // addPrefix adds "Re: " or "Fwd: " to a subject if not
