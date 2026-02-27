@@ -37,7 +37,7 @@ smtp_tls     = "starttls"   # "starttls", "implicit", or "none"
 # save_sent = false             # save sent messages via IMAP APPEND
 ```
 
-When `smtp_enabled = true`, the fields `smtp_host`, `smtp_port`, and `smtp_tls` are required. The three sending tools (`send_message`, `save_draft`, `reply_message`) are only registered when at least one account has `smtp_enabled = true`.
+When `smtp_enabled = true`, `smtp_host` and `smtp_port` are required. `smtp_tls` defaults to `"starttls"` if omitted; valid values are `"starttls"`, `"implicit"`, or `"none"`. The three sending tools (`send_message`, `save_draft`, `reply_message`) are only registered when at least one account has `smtp_enabled = true`.
 
 `config.toml` is gitignored because it contains credentials. See `config.example.toml` for a full example.
 
@@ -132,7 +132,7 @@ claude mcp list
 claude mcp get imap-mcp
 
 # Try removing and re-adding
-claude mcp remove imap-mcp
+claude mcp remove -s user imap-mcp
 make setup
 ```
 
@@ -149,8 +149,8 @@ make setup
 The `send_message`, `save_draft`, and `reply_message` tools only appear when at least one account has `smtp_enabled = true` in the config. Verify:
 
 1. `smtp_enabled = true` is set for the account
-2. `smtp_host`, `smtp_port`, and `smtp_tls` are all provided
-3. `smtp_tls` is one of `"starttls"`, `"implicit"`, or `"none"`
+2. `smtp_host` and `smtp_port` are provided
+3. `smtp_tls` is omitted (defaults to `"starttls"`) or one of `"starttls"`, `"implicit"`, `"none"`
 4. Restart Claude Code or Claude Desktop after changing the config
 
 ### Binary not found

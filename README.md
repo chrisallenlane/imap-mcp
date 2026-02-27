@@ -115,7 +115,7 @@ smtp_tls     = "starttls"   # "starttls", "implicit", or "none"
 # save_sent = false             # save sent messages via IMAP APPEND
 ```
 
-When `smtp_enabled = true`, `smtp_host`, `smtp_port`, and a valid `smtp_tls` value are required. SMTP tools (`send_message`, `save_draft`, `reply_message`) are only registered when at least one account has `smtp_enabled = true`.
+When `smtp_enabled = true`, `smtp_host` and `smtp_port` are required. `smtp_tls` defaults to `"starttls"` if omitted; valid values are `"starttls"`, `"implicit"`, or `"none"`. SMTP tools (`send_message`, `save_draft`, `reply_message`) are only registered when at least one account has `smtp_enabled = true`.
 
 `config.toml` is gitignored because it contains credentials. See `config.example.toml` for a full example.
 

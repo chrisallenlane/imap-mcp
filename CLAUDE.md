@@ -29,6 +29,7 @@ imap-mcp/
 │   ├── imap/                    # IMAP connection manager
 │   │   ├── manager.go           # ConnectionManager struct, connection lifecycle (GetClient, Close, connect, selectMailbox)
 │   │   ├── manager_test.go      # Connection lifecycle tests + shared test helpers
+│   │   ├── mock_test.go         # Shared mock IMAP client for tests
 │   │   ├── retry.go             # Auto-reconnect retry logic (withRetryResult, withRetry)
 │   │   ├── retry_test.go        # Retry logic tests
 │   │   ├── message.go           # Message IMAP operations (Fetch, Search, Store, Move, Copy, Expunge)
@@ -81,12 +82,14 @@ imap-mcp/
 │       ├── compose.go            # Shared message composition (composeMessage, writeAttachment, toMailAddresses, detectMediaType)
 │       ├── compose_test.go
 │       ├── smtp_helpers.go       # Shared SMTP helpers (resolveSMTPAccount, trySaveToSent, collectRecipients)
+│       ├── smtp_helpers_test.go
 │       ├── send_message.go       # send_message tool
 │       ├── send_message_test.go
 │       ├── save_draft.go         # save_draft tool
 │       ├── save_draft_test.go
 │       ├── reply_message.go      # reply_message tool (struct, Execute, validation, fetchSource)
 │       ├── reply_helpers.go      # reply_message helpers (buildReplyParams, quoting, recipient calc, attachment extraction)
+│       ├── reply_helpers_test.go
 │       └── reply_message_test.go
 ├── config.example.toml          # Example configuration file
 ├── Makefile                     # Build automation
@@ -146,7 +149,7 @@ type Account struct {
 }
 ```
 
-**Validation** checks that at least one account exists and all required IMAP fields (host, port, username, password) are set. When `smtp_enabled` is true, `smtp_host` and `smtp_port` are also required, and `smtp_tls` must be a valid value (`"starttls"`, `"implicit"`, or `"none"`).
+**Validation** checks that at least one account exists and all required IMAP fields (host, port, username, password) are set. When `smtp_enabled` is true, `smtp_host` and `smtp_port` are also required. `smtp_tls` defaults to `"starttls"` if omitted; valid values are `"starttls"`, `"implicit"`, `"none"`, or empty string (treated as `"starttls"`).
 
 **`HasSMTPEnabled()`** reports whether at least one account has `smtp_enabled = true`. Used by the server to conditionally register SMTP tools.
 
@@ -515,7 +518,7 @@ Tools define narrow interfaces for the ConnectionManager methods they need (e.g.
 ## Version Information
 
 - MCP Protocol Version: `2024-11-05`
-- Server Version: `0.1.0`
+- Server Version: `0.2.0`
 - Go Version: 1.24+ required
 
 ## Resources
