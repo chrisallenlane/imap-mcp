@@ -8,6 +8,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server that p
 - **Multi-Account Support**: Configure multiple IMAP accounts in a single TOML file
 - **Lazy Connections**: IMAP connections are established on first use and reused
 - **TLS Support**: Configurable TLS or plaintext connections per account
+- **SMTP Sending**: Optional per-account SMTP support for sending, drafting, and replying
 - **Tool System**: Clean interface for adding new email capabilities
 
 ## Available Tools
@@ -26,6 +27,9 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server that p
 | `delete_messages` | Deletes messages (move to Trash or permanent expunge) |
 | `create_mailbox` | Creates a new mailbox (folder) |
 | `delete_mailbox` | Deletes a mailbox (with special-use protection) |
+| `send_message` | Sends an email via SMTP (requires `smtp_enabled = true`) |
+| `save_draft` | Composes and saves a message to the Drafts folder (requires `smtp_enabled = true`) |
+| `reply_message` | Replies to, reply-alls, or forwards a message (requires `smtp_enabled = true`) |
 
 ## Project Structure
 
@@ -36,6 +40,7 @@ imap-mcp/
 ├── internal/
 │   ├── config/          # TOML configuration parsing
 │   ├── imap/            # IMAP connection manager
+│   ├── smtp/            # SMTP sending manager
 │   ├── server/          # MCP JSON-RPC server
 │   └── tools/           # Tool implementations
 ├── scripts/             # Helper scripts (fuzz testing)
@@ -95,7 +100,24 @@ password = "bridge-password"
 tls      = false
 ```
 
-All fields (host, port, username, password) are required. The `tls` field controls whether to use TLS or plaintext. `config.toml` is gitignored because it contains credentials.
+The IMAP fields (host, port, username, password) are required. The `tls` field controls whether to use TLS or plaintext.
+
+To enable sending, add SMTP fields to an account:
+
+```toml
+[accounts.gmail]
+# ... IMAP fields above ...
+smtp_enabled = true
+smtp_host    = "smtp.gmail.com"
+smtp_port    = 587
+smtp_tls     = "starttls"   # "starttls", "implicit", or "none"
+# smtp_from = "user@gmail.com"  # defaults to username
+# save_sent = false             # save sent messages via IMAP APPEND
+```
+
+When `smtp_enabled = true`, `smtp_host`, `smtp_port`, and a valid `smtp_tls` value are required. SMTP tools (`send_message`, `save_draft`, `reply_message`) are only registered when at least one account has `smtp_enabled = true`.
+
+`config.toml` is gitignored because it contains credentials. See `config.example.toml` for a full example.
 
 ### Running
 
@@ -160,6 +182,7 @@ Claude -> stdin -> JSON-RPC Request -> Tool Execution -> JSON-RPC Response -> st
 - **Server** (`internal/server`): Handles JSON-RPC protocol
 - **Config** (`internal/config`): Parses TOML configuration
 - **IMAP Manager** (`internal/imap`): Manages persistent IMAP connections
+- **SMTP Manager** (`internal/smtp`): Manages SMTP sending (per-operation connections)
 - **Tools** (`internal/tools`): Implements MCP tools
 
 ## Resources

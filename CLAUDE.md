@@ -77,13 +77,16 @@ imap-mcp/
 │       ├── create_mailbox.go     # create_mailbox tool
 │       ├── create_mailbox_test.go
 │       ├── delete_mailbox.go     # delete_mailbox tool
-│       ├── compose.go            # Shared message composition (composeMessage, writeAttachment)
+│       ├── delete_mailbox_test.go
+│       ├── compose.go            # Shared message composition (composeMessage, writeAttachment, toMailAddresses, detectMediaType)
 │       ├── compose_test.go
+│       ├── smtp_helpers.go       # Shared SMTP helpers (resolveSMTPAccount, trySaveToSent, collectRecipients)
 │       ├── send_message.go       # send_message tool
 │       ├── send_message_test.go
 │       ├── save_draft.go         # save_draft tool
 │       ├── save_draft_test.go
-│       └── delete_mailbox_test.go
+│       ├── reply_message.go      # reply_message tool
+│       └── reply_message_test.go
 ├── config.example.toml          # Example configuration file
 ├── Makefile                     # Build automation
 ├── CLAUDE.md                    # This file
@@ -420,8 +423,10 @@ Every new tool should have:
 - Tool interface defined in `tool.go`
 - MIME body parsing separated into `parse.go` (parsing concern) while `get_message.go` handles presentation
 - Shared formatting helpers (e.g., `formatFlags`, `formatMessage`, `formatUIDs`, `toIMAPUIDs`, `formatFlagNames`, `envelopeDate`) and UID parsing helpers (`parseUID`, `parseUIDs`, `parseCommaSeparatedUIDs`) live in `format.go`; `formatAddresses` lives in `get_message.go`
+- Shared message composition logic lives in `compose.go` (`composeMessage`, `detectMediaType`, `toMailAddresses`)
+- Shared SMTP helpers live in `smtp_helpers.go` (`resolveSMTPAccount`, `trySaveToSent`, `collectRecipients`) — used by `send_message`, `save_draft`, and `reply_message`
 - Shared test helpers (e.g., `assertContains`) live in `helpers_test.go`
-- The `internal/imap/` package is organized by domain noun: `manager.go` (connection lifecycle + shared helpers), `message.go` (message operations), `mailbox.go` (mailbox operations), `retry.go` (reconnect logic)
+- The `internal/imap/` package is organized by domain noun: `manager.go` (connection lifecycle + shared helpers), `message.go` (message operations including `FindSentMailbox`, `FindDraftsMailbox`, `AppendMessage`, `findSpecialMailbox`), `mailbox.go` (mailbox CRUD operations), `retry.go` (reconnect logic)
 
 ## Current Tools
 
@@ -439,6 +444,7 @@ Every new tool should have:
 - **`delete_mailbox`** - Deletes a mailbox (folder) via IMAP DELETE. Refuses to delete INBOX (case-insensitive) or any mailbox with SPECIAL-USE attributes (`\Sent`, `\Trash`, `\Drafts`, `\Junk`, `\Archive`, `\Flagged`). Takes required `account` and `name` parameters.
 - **`send_message`** - Sends an email via SMTP. Composes a proper RFC 5322 message with headers, body, and optional file attachments. Supports `to`, `cc`, and `bcc` recipients. From address defaults to IMAP `username` unless `smtp_from` is set. Optionally saves to Sent folder via IMAP APPEND when `save_sent = true`. Only available when `smtp_enabled = true`. Takes required `account`, `to`, `subject`, and `body` parameters, plus optional `cc`, `bcc`, and `attachments` (file paths).
 - **`save_draft`** - Composes a message and saves it as a draft in the Drafts folder via IMAP APPEND with `\Draft` flag. All parameters except `account` are optional, allowing partial drafts. Detects Drafts folder via SPECIAL-USE `\Drafts` attribute. Shares composition logic with `send_message`. Only available when `smtp_enabled = true`. Takes required `account` parameter, plus optional `to`, `cc`, `bcc`, `subject`, `body`, and `attachments`.
+- **`reply_message`** - Replies to, reply-alls, or forwards an email message via SMTP. Fetches the source message to build threading headers (`In-Reply-To`, `References`) and a quoted body. `reply` mode replies to the original sender; `reply_all` replies to all recipients excluding self; `forward` requires explicit `to` recipients and optionally carries original attachments when `include_attachments = true`. Prepends user text above the quoted or forwarded original. Optionally saves to Sent folder via IMAP APPEND when `save_sent = true`. Only available when `smtp_enabled = true`. Takes required `account`, `mailbox`, `uid`, `mode`, and `body` parameters, plus optional `to`, `cc`, `bcc`, and `include_attachments`.
 
 ## Configuration
 
@@ -499,6 +505,7 @@ Tools define narrow interfaces for the ConnectionManager methods they need (e.g.
 - `github.com/BurntSushi/toml` - TOML config parsing
 - `github.com/emersion/go-imap/v2` - IMAP client
 - `github.com/emersion/go-message` - RFC 2822/MIME message parsing and composition (used by `get_message` for body extraction, `compose.go` for message creation)
+- `github.com/emersion/go-sasl` - SASL authentication (used by `internal/smtp/` for PLAIN auth)
 - `github.com/emersion/go-smtp` - SMTP client (used by `internal/smtp/` for sending email)
 - `golang.org/x/net/html` - HTML tokenizer/parser (used by `HTMLToText` for HTML-to-text conversion of email bodies)
 
