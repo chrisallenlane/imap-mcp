@@ -35,7 +35,7 @@ imap-mcp/
 │   │   ├── message_test.go      # Message operation tests
 │   │   ├── mailbox.go           # Mailbox IMAP operations (List, Examine, Status, Create, Delete)
 │   │   └── mailbox_test.go      # Mailbox operation tests
-│   ├── smtp/                    # SMTP sending manager
+│   ├── smtp/                    # SMTP sending manager (package: smtpmanager)
 │   │   ├── manager.go           # Manager struct, Send, dial
 │   │   └── manager_test.go      # Manager tests
 │   ├── server/                  # MCP server implementation
@@ -45,7 +45,7 @@ imap-mcp/
 │   │   └── types.go             # JSON-RPC request/response types
 │   └── tools/                   # MCP tool implementations
 │       ├── tool.go              # Tool interface definition
-│       ├── format.go            # Shared formatting and UID parsing helpers (formatFlags, formatMessage, formatUIDs, toIMAPUIDs, parseUID, parseUIDs, etc.)
+│       ├── format.go            # Shared formatting and UID parsing helpers (formatFlags, formatMessage, formatUIDs, toIMAPUIDs, formatSize, parseUID, parseUIDs, etc.)
 │       ├── format_test.go       # Format helper tests
 │       ├── format_fuzz_test.go  # Fuzz tests for format helpers
 │       ├── html.go              # HTML-to-text conversion (HTMLToText)
@@ -85,7 +85,8 @@ imap-mcp/
 │       ├── send_message_test.go
 │       ├── save_draft.go         # save_draft tool
 │       ├── save_draft_test.go
-│       ├── reply_message.go      # reply_message tool
+│       ├── reply_message.go      # reply_message tool (struct, Execute, validation, fetchSource)
+│       ├── reply_helpers.go      # reply_message helpers (buildReplyParams, quoting, recipient calc, attachment extraction)
 │       └── reply_message_test.go
 ├── config.example.toml          # Example configuration file
 ├── Makefile                     # Build automation
@@ -202,7 +203,7 @@ Reconnections are logged to stderr via `log.Printf`. The identity check `m.conns
 
 Connections are thread-safe (protected by `sync.Mutex`). TLS vs insecure connections are selected based on the account's `tls` config field. Dead connections are detected and replaced transparently — callers never need to handle reconnection.
 
-### SMTP Manager (`internal/smtp/`)
+### SMTP Manager (`internal/smtp/`, package `smtpmanager`)
 
 Manages per-operation SMTP connections for sending email. No connection pooling — each `Send` call connects, authenticates, sends, and disconnects.
 
@@ -422,7 +423,7 @@ Every new tool should have:
 - One tool per file, except `move_messages` and `copy_messages` which share a `transferTool` implementation (and their constructors) in `transfer_messages.go`
 - Tool interface defined in `tool.go`
 - MIME body parsing separated into `parse.go` (parsing concern) while `get_message.go` handles presentation
-- Shared formatting helpers (e.g., `formatFlags`, `formatMessage`, `formatUIDs`, `toIMAPUIDs`, `formatFlagNames`, `envelopeDate`) and UID parsing helpers (`parseUID`, `parseUIDs`, `parseCommaSeparatedUIDs`) live in `format.go`; `formatAddresses` lives in `get_message.go`
+- Shared formatting helpers (e.g., `formatFlags`, `formatMessage`, `formatUIDs`, `toIMAPUIDs`, `formatFlagNames`, `envelopeDate`, `formatSize`) and UID parsing helpers (`parseUID`, `parseUIDs`, `parseCommaSeparatedUIDs`) live in `format.go`; `formatAddresses` lives in `get_message.go`
 - Shared message composition logic lives in `compose.go` (`composeMessage`, `detectMediaType`, `toMailAddresses`)
 - Shared SMTP helpers live in `smtp_helpers.go` (`resolveSMTPAccount`, `trySaveToSent`, `collectRecipients`) — used by `send_message`, `save_draft`, and `reply_message`
 - Shared test helpers (e.g., `assertContains`) live in `helpers_test.go`
@@ -505,8 +506,8 @@ Tools define narrow interfaces for the ConnectionManager methods they need (e.g.
 - `github.com/BurntSushi/toml` - TOML config parsing
 - `github.com/emersion/go-imap/v2` - IMAP client
 - `github.com/emersion/go-message` - RFC 2822/MIME message parsing and composition (used by `get_message` for body extraction, `compose.go` for message creation)
-- `github.com/emersion/go-sasl` - SASL authentication (used by `internal/smtp/` for PLAIN auth)
-- `github.com/emersion/go-smtp` - SMTP client (used by `internal/smtp/` for sending email)
+- `github.com/emersion/go-sasl` - SASL authentication (used by `internal/smtp/manager.go` for PLAIN auth)
+- `github.com/emersion/go-smtp` - SMTP client (used by `internal/smtp/manager.go` for sending email)
 - `golang.org/x/net/html` - HTML tokenizer/parser (used by `HTMLToText` for HTML-to-text conversion of email bodies)
 
 ## Version Information
