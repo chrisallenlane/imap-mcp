@@ -122,10 +122,20 @@ type Account struct {
     Username string `toml:"username"`
     Password string `toml:"password"`
     TLS      bool   `toml:"tls"`
+
+    // SMTP fields (only validated when SMTPEnabled is true).
+    SMTPEnabled bool   `toml:"smtp_enabled"`
+    SMTPHost    string `toml:"smtp_host"`
+    SMTPPort    int    `toml:"smtp_port"`
+    SMTPTLS     string `toml:"smtp_tls"`
+    SMTPFrom    string `toml:"smtp_from"`
+    SaveSent    bool   `toml:"save_sent"`
 }
 ```
 
-**Validation** checks that at least one account exists and all required fields (host, port, username, password) are set.
+**Validation** checks that at least one account exists and all required IMAP fields (host, port, username, password) are set. When `smtp_enabled` is true, `smtp_host` and `smtp_port` are also required, and `smtp_tls` must be a valid value (`"starttls"`, `"implicit"`, or `"none"`).
+
+**`HasSMTPEnabled()`** reports whether at least one account has `smtp_enabled = true`. Used by the server to conditionally register SMTP tools.
 
 The config file path is passed via the `--config` flag. `config.toml` is gitignored because it contains credentials. `config.example.toml` is committed as a reference.
 

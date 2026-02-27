@@ -19,6 +19,22 @@ type Account struct {
 	Username string `toml:"username"`
 	Password string `toml:"password"`
 	TLS      bool   `toml:"tls"`
+
+	// SMTP fields (only validated when SMTPEnabled is true).
+	SMTPEnabled bool   `toml:"smtp_enabled"`
+	SMTPHost    string `toml:"smtp_host"`
+	SMTPPort    int    `toml:"smtp_port"`
+	SMTPTLS     string `toml:"smtp_tls"`
+	SMTPFrom    string `toml:"smtp_from"`
+	SaveSent    bool   `toml:"save_sent"`
+}
+
+// validSMTPTLS is the set of allowed values for the smtp_tls field.
+var validSMTPTLS = map[string]bool{
+	"":         true,
+	"starttls": true,
+	"implicit": true,
+	"none":     true,
 }
 
 // Load reads and parses a TOML config file from the given path.
@@ -68,7 +84,39 @@ func (c *Config) Validate() error {
 				name,
 			)
 		}
+
+		if acct.SMTPEnabled {
+			if acct.SMTPHost == "" {
+				return fmt.Errorf(
+					"account %q: smtp_host is required when smtp_enabled is true",
+					name,
+				)
+			}
+			if acct.SMTPPort == 0 {
+				return fmt.Errorf(
+					"account %q: smtp_port is required when smtp_enabled is true",
+					name,
+				)
+			}
+			if !validSMTPTLS[acct.SMTPTLS] {
+				return fmt.Errorf(
+					"account %q: smtp_tls must be \"starttls\", \"implicit\", or \"none\"",
+					name,
+				)
+			}
+		}
 	}
 
 	return nil
+}
+
+// HasSMTPEnabled reports whether at least one account has
+// smtp_enabled set to true.
+func (c *Config) HasSMTPEnabled() bool {
+	for _, acct := range c.Accounts {
+		if acct.SMTPEnabled {
+			return true
+		}
+	}
+	return false
 }
