@@ -207,11 +207,13 @@ Connections are thread-safe (protected by `sync.Mutex`). TLS vs insecure connect
 
 Manages per-operation SMTP connections for sending email. No connection pooling — each `Send` call connects, authenticates, sends, and disconnects.
 
-- **`NewManager(cfg)`** - Creates an SMTP manager from config
+- **`NewManager(cfg)`** - Creates an SMTP manager from config. Sets the `dial` field to `defaultDial`.
 - **`Config()`** - Returns the manager's config
-- **`Send(account, from, to, msg)`** - Sends an email via SMTP. Validates account exists and has `smtp_enabled = true`. Supports STARTTLS (default), implicit TLS, and plain connections.
+- **`Send(account, from, to, msg)`** - Sends an email via SMTP. Validates account exists and has `smtp_enabled = true`. Operates on the `smtpClient` interface (not the concrete `*gosmtp.Client`). Supports STARTTLS (default), implicit TLS, and plain connections.
 
-The `dial` helper selects the connection method based on `smtp_tls` config: `"starttls"` (default), `"implicit"`, or `"none"`.
+**`smtpClient` interface** — A narrow interface covering the 6 methods `Send` calls on an SMTP client: `Auth`, `Mail`, `Rcpt`, `Data` (returns `io.WriteCloser`), `Quit`, `Close`. The concrete `*gosmtp.Client` satisfies this via `clientAdapter`, which promotes `Data()`'s return type from `*gosmtp.DataCommand` to `io.WriteCloser`.
+
+**Injectable dialer** — `Manager.dial` is a function field (`func(config.Account) (smtpClient, error)`) defaulting to `defaultDial`, which wraps the real `dial` function and returns a `clientAdapter`. Tests inject mock dialers that return mock `smtpClient` implementations. The `dial` helper selects the connection method based on `smtp_tls` config: `"starttls"` (default), `"implicit"`, or `"none"`.
 
 ### Message Composition (`internal/tools/compose.go`)
 
