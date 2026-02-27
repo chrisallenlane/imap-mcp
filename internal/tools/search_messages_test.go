@@ -566,6 +566,53 @@ func TestSearchMessages_CapAt100(t *testing.T) {
 	)
 }
 
+func TestSearchMessages_Exactly100NotCapped(t *testing.T) {
+	// Exactly maxSearchResults results should NOT be capped.
+	uids := make([]imap.UID, 100)
+	messages := make(
+		[]*imapclient.FetchMessageBuffer, 100,
+	)
+	for i := range uids {
+		uids[i] = imap.UID(i + 1)
+		messages[i] = &imapclient.FetchMessageBuffer{
+			UID:   imap.UID(i + 1),
+			Flags: []imap.Flag{imap.FlagSeen},
+			Envelope: &imap.Envelope{
+				Date: time.Date(
+					2025, 1, 1, 0, 0, 0, 0,
+					time.UTC,
+				),
+				Subject: fmt.Sprintf("Msg %d", i+1),
+				From: []imap.Address{
+					{Mailbox: "a", Host: "b.com"},
+				},
+			},
+		}
+	}
+
+	mock := &mockMessageSearcher{
+		uids:     uids,
+		messages: messages,
+	}
+	tool := NewSearchMessages(mock)
+
+	result, err := tool.Execute(
+		context.Background(),
+		json.RawMessage(
+			`{"account":"a","mailbox":"INBOX",`+
+				`"from":"a"}`,
+		),
+	)
+	if err != nil {
+		t.Fatalf("Execute() unexpected error: %v", err)
+	}
+
+	assertContains(
+		t, result, "100 matches, showing all",
+	)
+	assertNotContains(t, result, "total matches")
+}
+
 func TestSearchMessages_SearchError(t *testing.T) {
 	mock := &mockMessageSearcher{
 		searchErr: fmt.Errorf("connection refused"),

@@ -149,20 +149,30 @@
       "insights": []
     },
     "internal/tools/list_mailboxes.go": {
-      "status": "pending",
+      "status": "completed",
       "covering_tests": ["internal/tools/list_mailboxes_test.go"],
-      "last_tested": null,
-      "mutations_by_type": {},
-      "mutation_score": null,
-      "insights": []
+      "last_tested": "2026-02-26T02:00:00Z",
+      "mutations_by_type": {
+        "relational": {"total": 12, "killed": 12, "survived": 0, "examples": []},
+        "logical": {"total": 1, "killed": 1, "survived": 0, "examples": []},
+        "constant": {"total": 8, "killed": 5, "survived": 3, "examples": []},
+        "statement": {"total": 5, "killed": 4, "survived": 1, "examples": []},
+        "control_flow": {"total": 1, "killed": 1, "survived": 0, "examples": []}
+      },
+      "mutation_score": 85.7,
+      "insights": ["Survivors are cosmetic (whitespace, trailing newline, map capacity hint) and a redundant continue. No logic gaps."]
     },
     "internal/tools/list_messages.go": {
-      "status": "pending",
+      "status": "completed",
       "covering_tests": ["internal/tools/list_messages_test.go"],
-      "last_tested": null,
-      "mutations_by_type": {},
-      "mutation_score": null,
-      "insights": []
+      "last_tested": "2026-02-26T01:45:00Z",
+      "mutations_by_type": {
+        "arithmetic": {"total": 9, "killed": 9, "survived": 0, "examples": []},
+        "relational": {"total": 10, "killed": 9, "survived": 1, "examples": []},
+        "constant": {"total": 7, "killed": 4, "survived": 3, "examples": []}
+      },
+      "mutation_score": 80.8,
+      "insights": ["Survivors are cosmetic (description/schema strings), semantically equivalent (< vs <= for clamping to 1), and guards for impossible conditions (pageSz is always 100)."]
     },
     "internal/tools/get_message.go": {
       "status": "completed",
@@ -178,20 +188,37 @@
       "insights": ["Tightened 2 assertions: parentheses in 'no envelope data' check, and added formatSize boundary test at 1023 bytes. Score improved from 93.75% to 100%."]
     },
     "internal/tools/search_messages.go": {
-      "status": "pending",
+      "status": "completed",
       "covering_tests": ["internal/tools/search_messages_test.go"],
-      "last_tested": null,
-      "mutations_by_type": {},
-      "mutation_score": null,
-      "insights": []
+      "last_tested": "2026-02-26T01:00:00Z",
+      "mutations_by_type": {
+        "relational": {"total": 8, "killed": 7, "survived": 1, "examples": [
+          {"line": 184, "original": ">", "mutated": ">=", "result": "survived", "test_that_caught_it": "TestSearchMessages_Exactly100NotCapped (after fix)"}
+        ]},
+        "logical": {"total": 6, "killed": 6, "survived": 0, "examples": []},
+        "constant": {"total": 4, "killed": 4, "survived": 0, "examples": []},
+        "statement": {"total": 2, "killed": 1, "survived": 1, "examples": [
+          {"line": 189, "original": "uids[len(uids)-maxSearchResults:]", "mutated": "uids[0:]", "result": "survived_mock_limitation", "test_that_caught_it": null}
+        ]}
+      },
+      "mutation_score": 77.1,
+      "insights": ["Added boundary test for exactly 100 results (not capped). Most reported survivors were actually caught by TestBuildCriteria (mutator only ran TestSearchMessages*). One survivor (slice mutation) is a mock limitation."]
     },
     "internal/tools/mark_messages.go": {
-      "status": "pending",
+      "status": "completed",
       "covering_tests": ["internal/tools/mark_messages_test.go"],
-      "last_tested": null,
-      "mutations_by_type": {},
-      "mutation_score": null,
-      "insights": []
+      "last_tested": "2026-02-26T01:30:00Z",
+      "mutations_by_type": {
+        "relational": {"total": 8, "killed": 6, "survived": 2, "examples": [
+          {"line": 201, "original": "len(addFlags) > 0", "mutated": "len(addFlags) >= 0", "result": "survived_equivalent", "test_that_caught_it": null},
+          {"line": 209, "original": "len(removeFlags) > 0", "mutated": "len(removeFlags) >= 0", "result": "survived_equivalent", "test_that_caught_it": null}
+        ]},
+        "logical": {"total": 2, "killed": 2, "survived": 0, "examples": []},
+        "control_flow": {"total": 9, "killed": 9, "survived": 0, "examples": []},
+        "statement": {"total": 4, "killed": 4, "survived": 0, "examples": []}
+      },
+      "mutation_score": 91.3,
+      "insights": ["Both survivors are semantically equivalent (len >= 0 is always true). Effective score: 100%."]
     },
     "internal/tools/transfer_messages.go": {
       "status": "pending",
@@ -202,12 +229,18 @@
       "insights": []
     },
     "internal/tools/delete_messages.go": {
-      "status": "pending",
+      "status": "completed",
       "covering_tests": ["internal/tools/delete_messages_test.go"],
-      "last_tested": null,
-      "mutations_by_type": {},
-      "mutation_score": null,
-      "insights": []
+      "last_tested": "2026-02-26T01:15:00Z",
+      "mutations_by_type": {
+        "relational": {"total": 8, "killed": 6, "survived": 2, "examples": []},
+        "logical": {"total": 1, "killed": 1, "survived": 0, "examples": []},
+        "constant": {"total": 10, "killed": 6, "survived": 4, "examples": []},
+        "statement": {"total": 3, "killed": 3, "survived": 0, "examples": []},
+        "arithmetic": {"total": 2, "killed": 2, "survived": 0, "examples": []}
+      },
+      "mutation_score": 80.6,
+      "insights": ["Survivors are schema description strings (cosmetic) and one string <= vs == with equal strings (boundary). All logic mutations caught."]
     },
     "internal/tools/create_mailbox.go": {
       "status": "pending",
