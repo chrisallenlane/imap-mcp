@@ -4,12 +4,63 @@ package smtpmanager
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 
 	"github.com/chrisallenlane/imap-mcp/internal/config"
 	"github.com/emersion/go-sasl"
 	gosmtp "github.com/emersion/go-smtp"
+)
+
+// Sentinel errors returned by Send and dial. Callers may use
+// errors.Is to identify specific failure modes.
+var (
+	// ErrUnknownAccount is returned when the named account is
+	// not present in the config.
+	ErrUnknownAccount = errors.New("unknown account")
+
+	// ErrSMTPDisabled is returned when smtp_enabled is false
+	// for the named account.
+	ErrSMTPDisabled = errors.New("SMTP not enabled for account")
+
+	// ErrNoRecipients is returned when Send is called with an
+	// empty to slice.
+	ErrNoRecipients = errors.New("no recipients specified")
+
+	// ErrDialFailed is returned when the SMTP connection cannot
+	// be established.
+	ErrDialFailed = errors.New("failed to connect to SMTP server")
+
+	// ErrAuthFailed is returned when SMTP AUTH is rejected.
+	ErrAuthFailed = errors.New("SMTP authentication failed")
+
+	// ErrMailFailed is returned when the MAIL FROM command
+	// is rejected.
+	ErrMailFailed = errors.New("failed to set envelope sender")
+
+	// ErrRcptFailed is returned when a RCPT TO command is
+	// rejected.
+	ErrRcptFailed = errors.New("failed to add recipient")
+
+	// ErrDataFailed is returned when the DATA command is
+	// rejected.
+	ErrDataFailed = errors.New("failed to start DATA command")
+
+	// ErrWriteFailed is returned when writing the message body
+	// fails.
+	ErrWriteFailed = errors.New("failed to write message data")
+
+	// ErrFinalizeFailed is returned when closing the DATA
+	// writer fails.
+	ErrFinalizeFailed = errors.New("failed to finalize message")
+
+	// ErrQuitFailed is returned when the QUIT command fails.
+	ErrQuitFailed = errors.New("SMTP QUIT failed")
+
+	// ErrInvalidTLSMode is returned by dial when smtp_tls
+	// contains an unrecognised value.
+	ErrInvalidTLSMode = errors.New("invalid smtp_tls mode")
 )
 
 // smtpClient is a narrow interface for SMTP client operations.
@@ -70,24 +121,24 @@ func (m *Manager) Send(
 ) error {
 	acct, ok := m.config.Accounts[account]
 	if !ok {
-		return fmt.Errorf("unknown account: %q", account)
+		return fmt.Errorf("%w: %q", ErrUnknownAccount, account)
 	}
 
 	if !acct.SMTPEnabled {
 		return fmt.Errorf(
-			"SMTP is not enabled for account %q. "+
-				"Set smtp_enabled = true in your "+
-				"config file.",
+			"%w %q: set smtp_enabled = true in config",
+			ErrSMTPDisabled,
 			account,
 		)
 	}
 
+	if len(to) == 0 {
+		return ErrNoRecipients
+	}
+
 	c, err := m.dial(acct)
 	if err != nil {
-		return fmt.Errorf(
-			"failed to connect to SMTP server: %w",
-			err,
-		)
+		return fmt.Errorf("%w: %w", ErrDialFailed, err)
 	}
 	defer c.Close()
 
@@ -97,20 +148,18 @@ func (m *Manager) Send(
 		acct.Password,
 	)
 	if err := c.Auth(auth); err != nil {
-		return fmt.Errorf("SMTP authentication failed: %w", err)
+		return fmt.Errorf("%w: %w", ErrAuthFailed, err)
 	}
 
 	if err := c.Mail(from, nil); err != nil {
-		return fmt.Errorf(
-			"failed to set envelope sender: %w",
-			err,
-		)
+		return fmt.Errorf("%w: %w", ErrMailFailed, err)
 	}
 
 	for _, rcpt := range to {
 		if err := c.Rcpt(rcpt, nil); err != nil {
 			return fmt.Errorf(
-				"failed to add recipient %q: %w",
+				"%w %q: %w",
+				ErrRcptFailed,
 				rcpt,
 				err,
 			)
@@ -119,28 +168,19 @@ func (m *Manager) Send(
 
 	wc, err := c.Data()
 	if err != nil {
-		return fmt.Errorf(
-			"failed to start DATA command: %w",
-			err,
-		)
+		return fmt.Errorf("%w: %w", ErrDataFailed, err)
 	}
 
 	if _, err := io.Copy(wc, msg); err != nil {
-		return fmt.Errorf(
-			"failed to write message data: %w",
-			err,
-		)
+		return fmt.Errorf("%w: %w", ErrWriteFailed, err)
 	}
 
 	if err := wc.Close(); err != nil {
-		return fmt.Errorf(
-			"failed to finalize message: %w",
-			err,
-		)
+		return fmt.Errorf("%w: %w", ErrFinalizeFailed, err)
 	}
 
 	if err := c.Quit(); err != nil {
-		return fmt.Errorf("SMTP QUIT failed: %w", err)
+		return fmt.Errorf("%w: %w", ErrQuitFailed, err)
 	}
 
 	return nil
@@ -172,9 +212,6 @@ func dial(acct config.Account) (*gosmtp.Client, error) {
 	case "none":
 		return gosmtp.Dial(addr)
 	default:
-		return nil, fmt.Errorf(
-			"invalid smtp_tls mode: %q",
-			tlsMode,
-		)
+		return nil, fmt.Errorf("%w: %q", ErrInvalidTLSMode, tlsMode)
 	}
 }

@@ -4,8 +4,6 @@ import (
 	"errors"
 	"testing"
 	"time"
-
-	"github.com/emersion/go-imap/v2/imapclient"
 )
 
 func TestWithRetry_SucceedsFirstAttempt(t *testing.T) {
@@ -14,15 +12,12 @@ func TestWithRetry_SucceedsFirstAttempt(t *testing.T) {
 	defer serverConn.Close()
 	defer client.Close()
 
-	// Inject a live client.
-	mgr.mu.Lock()
-	mgr.conns["gmail"] = client
-	mgr.mu.Unlock()
+	injectClient(mgr, "gmail", client)
 
 	calls := 0
 	err := mgr.withRetry(
 		"gmail",
-		func(_ *imapclient.Client) error {
+		func(_ imapClient) error {
 			calls++
 			return nil
 		},
@@ -41,16 +36,13 @@ func TestWithRetry_ReturnsOpErrorWhenConnectionAlive(t *testing.T) {
 	defer serverConn.Close()
 	defer client.Close()
 
-	// Inject a live client.
-	mgr.mu.Lock()
-	mgr.conns["gmail"] = client
-	mgr.mu.Unlock()
+	injectClient(mgr, "gmail", client)
 
 	opErr := errors.New("operation failed")
 	calls := 0
 	err := mgr.withRetry(
 		"gmail",
-		func(_ *imapclient.Client) error {
+		func(_ imapClient) error {
 			calls++
 			return opErr
 		},
@@ -76,15 +68,12 @@ func TestWithRetry_RetriesOnDeadConnection(t *testing.T) {
 	mgr := newTestConnectionManager()
 	client, serverConn := newTestClient(t)
 
-	// Inject a live client.
-	mgr.mu.Lock()
-	mgr.conns["gmail"] = client
-	mgr.mu.Unlock()
+	injectClient(mgr, "gmail", client)
 
 	calls := 0
 	err := mgr.withRetry(
 		"gmail",
-		func(c *imapclient.Client) error {
+		func(c imapClient) error {
 			calls++
 			if calls == 1 {
 				// Simulate connection death during
@@ -128,7 +117,7 @@ func TestWithRetry_UnknownAccount(t *testing.T) {
 	mgr := newTestConnectionManager()
 	err := mgr.withRetry(
 		"nonexistent",
-		func(_ *imapclient.Client) error {
+		func(_ imapClient) error {
 			t.Fatal("fn should not be called")
 			return nil
 		},
@@ -144,16 +133,13 @@ func TestWithRetryResult_SucceedsFirstAttempt(t *testing.T) {
 	defer serverConn.Close()
 	defer client.Close()
 
-	// Inject a live client.
-	mgr.mu.Lock()
-	mgr.conns["gmail"] = client
-	mgr.mu.Unlock()
+	injectClient(mgr, "gmail", client)
 
 	calls := 0
 	result, err := withRetryResult(
 		mgr,
 		"gmail",
-		func(_ *imapclient.Client) (string, error) {
+		func(_ imapClient) (string, error) {
 			calls++
 			return "ok", nil
 		},
@@ -182,17 +168,14 @@ func TestWithRetryResult_ReturnsOpErrorWhenAlive(t *testing.T) {
 	defer serverConn.Close()
 	defer client.Close()
 
-	// Inject a live client.
-	mgr.mu.Lock()
-	mgr.conns["gmail"] = client
-	mgr.mu.Unlock()
+	injectClient(mgr, "gmail", client)
 
 	opErr := errors.New("operation failed")
 	calls := 0
 	result, err := withRetryResult(
 		mgr,
 		"gmail",
-		func(_ *imapclient.Client) (string, error) {
+		func(_ imapClient) (string, error) {
 			calls++
 			return "", opErr
 		},
@@ -224,7 +207,7 @@ func TestWithRetryResult_UnknownAccount(t *testing.T) {
 	_, err := withRetryResult(
 		mgr,
 		"nonexistent",
-		func(_ *imapclient.Client) (string, error) {
+		func(_ imapClient) (string, error) {
 			t.Fatal("fn should not be called")
 			return "", nil
 		},

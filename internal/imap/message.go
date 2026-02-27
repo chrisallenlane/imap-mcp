@@ -18,9 +18,7 @@ func (m *ConnectionManager) FetchMessages(
 	return withRetryResult(
 		m,
 		account,
-		func(
-			c *imapclient.Client,
-		) ([]*imapclient.FetchMessageBuffer, error) {
+		func(c imapClient) ([]*imapclient.FetchMessageBuffer, error) {
 			return c.Fetch(seqSet, options).Collect()
 		},
 	)
@@ -35,7 +33,7 @@ func (m *ConnectionManager) SearchMessages(
 	return withRetryResult(
 		m,
 		account,
-		func(c *imapclient.Client) ([]imap.UID, error) {
+		func(c imapClient) ([]imap.UID, error) {
 			if _, err := selectMailbox(c, mailbox, true); err != nil {
 				return nil, err
 			}
@@ -63,9 +61,7 @@ func (m *ConnectionManager) FetchMessagesByUID(
 	return withRetryResult(
 		m,
 		account,
-		func(
-			c *imapclient.Client,
-		) ([]*imapclient.FetchMessageBuffer, error) {
+		func(c imapClient) ([]*imapclient.FetchMessageBuffer, error) {
 			if _, err := selectMailbox(c, mailbox, true); err != nil {
 				return nil, err
 			}
@@ -88,7 +84,7 @@ func (m *ConnectionManager) StoreFlags(
 
 	return m.withRetry(
 		account,
-		func(c *imapclient.Client) error {
+		func(c imapClient) error {
 			if _, err := selectMailbox(c, mailbox, false); err != nil {
 				return err
 			}
@@ -122,7 +118,7 @@ func (m *ConnectionManager) MoveMessages(
 ) error {
 	return m.transferMessages(
 		account, mailbox, uids, destMailbox, "move",
-		func(c *imapclient.Client, s imap.UIDSet, d string) error {
+		func(c imapClient, s imap.UIDSet, d string) error {
 			_, err := c.Move(s, d).Wait()
 			return err
 		},
@@ -138,7 +134,7 @@ func (m *ConnectionManager) CopyMessages(
 ) error {
 	return m.transferMessages(
 		account, mailbox, uids, destMailbox, "copy",
-		func(c *imapclient.Client, s imap.UIDSet, d string) error {
+		func(c imapClient, s imap.UIDSet, d string) error {
 			_, err := c.Copy(s, d).Wait()
 			return err
 		},
@@ -150,7 +146,7 @@ func (m *ConnectionManager) transferMessages(
 	account, mailbox string,
 	uids []imap.UID,
 	destMailbox, verb string,
-	op func(*imapclient.Client, imap.UIDSet, string) error,
+	op func(imapClient, imap.UIDSet, string) error,
 ) error {
 	if len(uids) == 0 {
 		return fmt.Errorf("no UIDs provided")
@@ -158,7 +154,7 @@ func (m *ConnectionManager) transferMessages(
 
 	return m.withRetry(
 		account,
-		func(c *imapclient.Client) error {
+		func(c imapClient) error {
 			if _, err := selectMailbox(c, mailbox, false); err != nil {
 				return err
 			}
@@ -189,7 +185,7 @@ func (m *ConnectionManager) ExpungeMessages(
 
 	return m.withRetry(
 		account,
-		func(c *imapclient.Client) error {
+		func(c imapClient) error {
 			if _, err := selectMailbox(c, mailbox, false); err != nil {
 				return err
 			}
@@ -297,7 +293,7 @@ func (m *ConnectionManager) AppendMessage(
 ) error {
 	return m.withRetry(
 		account,
-		func(c *imapclient.Client) error {
+		func(c imapClient) error {
 			size := int64(len(msg))
 			appendCmd := c.Append(
 				mailbox,

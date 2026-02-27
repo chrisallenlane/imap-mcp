@@ -3,8 +3,6 @@ package imap
 import (
 	"fmt"
 	"log"
-
-	"github.com/emersion/go-imap/v2/imapclient"
 )
 
 // withRetryResult executes fn with an IMAP client. If fn
@@ -13,7 +11,7 @@ import (
 func withRetryResult[T any](
 	m *ConnectionManager,
 	account string,
-	fn func(c *imapclient.Client) (T, error),
+	fn func(c imapClient) (T, error),
 ) (T, error) {
 	client, err := m.GetClient(account)
 	if err != nil {
@@ -61,12 +59,12 @@ func withRetryResult[T any](
 // return only an error.
 func (m *ConnectionManager) withRetry(
 	account string,
-	fn func(c *imapclient.Client) error,
+	fn func(c imapClient) error,
 ) error {
 	_, err := withRetryResult(
 		m,
 		account,
-		func(c *imapclient.Client) (struct{}, error) {
+		func(c imapClient) (struct{}, error) {
 			return struct{}{}, fn(c)
 		},
 	)

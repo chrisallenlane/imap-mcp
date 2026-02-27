@@ -42,6 +42,10 @@ type mockClient struct {
 
 	dataWriter *mockDataWriter
 
+	// calls records the sequence of method invocations for
+	// ordering assertions.
+	calls []string
+
 	authCalls  int
 	mailFrom   string
 	rcptAddrs  []string
@@ -51,6 +55,7 @@ type mockClient struct {
 }
 
 func (c *mockClient) Auth(_ sasl.Client) error {
+	c.calls = append(c.calls, "Auth")
 	c.authCalls++
 	return c.authErr
 }
@@ -58,6 +63,7 @@ func (c *mockClient) Auth(_ sasl.Client) error {
 func (c *mockClient) Mail(
 	from string, _ *gosmtp.MailOptions,
 ) error {
+	c.calls = append(c.calls, "Mail")
 	c.mailFrom = from
 	return c.mailErr
 }
@@ -65,11 +71,13 @@ func (c *mockClient) Mail(
 func (c *mockClient) Rcpt(
 	to string, _ *gosmtp.RcptOptions,
 ) error {
+	c.calls = append(c.calls, "Rcpt")
 	c.rcptAddrs = append(c.rcptAddrs, to)
 	return c.rcptErr
 }
 
 func (c *mockClient) Data() (io.WriteCloser, error) {
+	c.calls = append(c.calls, "Data")
 	c.dataCalls++
 	if c.dataErr != nil {
 		return nil, c.dataErr
@@ -78,11 +86,13 @@ func (c *mockClient) Data() (io.WriteCloser, error) {
 }
 
 func (c *mockClient) Quit() error {
+	c.calls = append(c.calls, "Quit")
 	c.quitCalls++
 	return c.quitErr
 }
 
 func (c *mockClient) Close() error {
+	c.calls = append(c.calls, "Close")
 	c.closeCalls++
 	return c.closeErr
 }
@@ -152,12 +162,9 @@ func TestSend_UnknownAccount(t *testing.T) {
 		[]string{"to@example.com"},
 		strings.NewReader("test"),
 	)
-	if err == nil {
-		t.Fatal("expected error for unknown account")
-	}
-	if !strings.Contains(err.Error(), "unknown account") {
+	if !errors.Is(err, ErrUnknownAccount) {
 		t.Errorf(
-			"error should mention unknown account, got: %v",
+			"expected ErrUnknownAccount, got: %v",
 			err,
 		)
 	}
@@ -183,12 +190,29 @@ func TestSend_SMTPNotEnabled(t *testing.T) {
 		[]string{"to@example.com"},
 		strings.NewReader("test"),
 	)
-	if err == nil {
-		t.Fatal("expected error when SMTP is not enabled")
-	}
-	if !strings.Contains(err.Error(), "not enabled") {
+	if !errors.Is(err, ErrSMTPDisabled) {
 		t.Errorf(
-			"error should mention not enabled, got: %v",
+			"expected ErrSMTPDisabled, got: %v",
+			err,
+		)
+	}
+}
+
+func TestSend_EmptyRecipients(t *testing.T) {
+	mgr := newMockManager(
+		smtpEnabledConfig(),
+		&mockClient{dataWriter: &mockDataWriter{}},
+	)
+
+	err := mgr.Send(
+		"test",
+		"from@example.com",
+		[]string{},
+		strings.NewReader("test"),
+	)
+	if !errors.Is(err, ErrNoRecipients) {
+		t.Errorf(
+			"expected ErrNoRecipients, got: %v",
 			err,
 		)
 	}
@@ -209,12 +233,9 @@ func TestSend_DialFailure(t *testing.T) {
 		[]string{"to@example.com"},
 		strings.NewReader("test"),
 	)
-	if err == nil {
-		t.Fatal("expected error for dial failure")
-	}
-	if !strings.Contains(err.Error(), "failed to connect") {
+	if !errors.Is(err, ErrDialFailed) {
 		t.Errorf(
-			"error should mention connection failure, got: %v",
+			"expected ErrDialFailed, got: %v",
 			err,
 		)
 	}
@@ -233,14 +254,11 @@ func TestSend_AuthFailure(t *testing.T) {
 		[]string{"to@example.com"},
 		strings.NewReader("test"),
 	)
-	if err == nil {
-		t.Fatal("expected error for auth failure")
-	}
-	if !strings.Contains(
-		err.Error(),
-		"SMTP authentication failed",
-	) {
-		t.Errorf("unexpected error: %v", err)
+	if !errors.Is(err, ErrAuthFailed) {
+		t.Errorf(
+			"expected ErrAuthFailed, got: %v",
+			err,
+		)
 	}
 	if mc.authCalls != 1 {
 		t.Errorf("Auth called %d times, want 1", mc.authCalls)
@@ -266,14 +284,11 @@ func TestSend_MailFailure(t *testing.T) {
 		[]string{"to@example.com"},
 		strings.NewReader("test"),
 	)
-	if err == nil {
-		t.Fatal("expected error for mail failure")
-	}
-	if !strings.Contains(
-		err.Error(),
-		"failed to set envelope sender",
-	) {
-		t.Errorf("unexpected error: %v", err)
+	if !errors.Is(err, ErrMailFailed) {
+		t.Errorf(
+			"expected ErrMailFailed, got: %v",
+			err,
+		)
 	}
 	if mc.mailFrom != "from@example.com" {
 		t.Errorf(
@@ -297,18 +312,9 @@ func TestSend_RcptFailure(t *testing.T) {
 		[]string{"bad@example.com"},
 		strings.NewReader("test"),
 	)
-	if err == nil {
-		t.Fatal("expected error for rcpt failure")
-	}
-	if !strings.Contains(
-		err.Error(),
-		"failed to add recipient",
-	) {
-		t.Errorf("unexpected error: %v", err)
-	}
-	if !strings.Contains(err.Error(), "bad@example.com") {
+	if !errors.Is(err, ErrRcptFailed) {
 		t.Errorf(
-			"error should mention failing address, got: %v",
+			"expected ErrRcptFailed, got: %v",
 			err,
 		)
 	}
@@ -327,14 +333,11 @@ func TestSend_DataStartFailure(t *testing.T) {
 		[]string{"to@example.com"},
 		strings.NewReader("test"),
 	)
-	if err == nil {
-		t.Fatal("expected error for data start failure")
-	}
-	if !strings.Contains(
-		err.Error(),
-		"failed to start DATA command",
-	) {
-		t.Errorf("unexpected error: %v", err)
+	if !errors.Is(err, ErrDataFailed) {
+		t.Errorf(
+			"expected ErrDataFailed, got: %v",
+			err,
+		)
 	}
 }
 
@@ -352,14 +355,11 @@ func TestSend_DataWriteFailure(t *testing.T) {
 		[]string{"to@example.com"},
 		strings.NewReader("test body"),
 	)
-	if err == nil {
-		t.Fatal("expected error for data write failure")
-	}
-	if !strings.Contains(
-		err.Error(),
-		"failed to write message data",
-	) {
-		t.Errorf("unexpected error: %v", err)
+	if !errors.Is(err, ErrWriteFailed) {
+		t.Errorf(
+			"expected ErrWriteFailed, got: %v",
+			err,
+		)
 	}
 }
 
@@ -377,14 +377,11 @@ func TestSend_DataCloseFailure(t *testing.T) {
 		[]string{"to@example.com"},
 		strings.NewReader("test body"),
 	)
-	if err == nil {
-		t.Fatal("expected error for data close failure")
-	}
-	if !strings.Contains(
-		err.Error(),
-		"failed to finalize message",
-	) {
-		t.Errorf("unexpected error: %v", err)
+	if !errors.Is(err, ErrFinalizeFailed) {
+		t.Errorf(
+			"expected ErrFinalizeFailed, got: %v",
+			err,
+		)
 	}
 }
 
@@ -401,11 +398,11 @@ func TestSend_QuitFailure(t *testing.T) {
 		[]string{"to@example.com"},
 		strings.NewReader("test body"),
 	)
-	if err == nil {
-		t.Fatal("expected error for quit failure")
-	}
-	if !strings.Contains(err.Error(), "SMTP QUIT failed") {
-		t.Errorf("unexpected error: %v", err)
+	if !errors.Is(err, ErrQuitFailed) {
+		t.Errorf(
+			"expected ErrQuitFailed, got: %v",
+			err,
+		)
 	}
 }
 
@@ -426,6 +423,28 @@ func TestSend_HappyPath(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
+	// Verify SMTP protocol ordering:
+	// Auth → Mail → Rcpt (×n) → Data → Quit → Close (defer).
+	wantCalls := []string{
+		"Auth", "Mail", "Rcpt", "Rcpt", "Data", "Quit", "Close",
+	}
+	if len(mc.calls) != len(wantCalls) {
+		t.Fatalf(
+			"call sequence = %v, want %v",
+			mc.calls,
+			wantCalls,
+		)
+	}
+	for i, want := range wantCalls {
+		if mc.calls[i] != want {
+			t.Errorf(
+				"call[%d] = %q, want %q (sequence: %v)",
+				i, mc.calls[i], want, mc.calls,
+			)
+		}
+	}
+
+	// Argument-level assertions.
 	if mc.authCalls != 1 {
 		t.Errorf("Auth called %d times, want 1", mc.authCalls)
 	}
@@ -485,12 +504,9 @@ func TestDial_InvalidTLSMode(t *testing.T) {
 	}
 
 	_, err := dial(acct)
-	if err == nil {
-		t.Fatal("expected error for invalid TLS mode")
-	}
-	if !strings.Contains(err.Error(), "invalid smtp_tls") {
+	if !errors.Is(err, ErrInvalidTLSMode) {
 		t.Errorf(
-			"error should mention invalid tls mode, got: %v",
+			"expected ErrInvalidTLSMode, got: %v",
 			err,
 		)
 	}

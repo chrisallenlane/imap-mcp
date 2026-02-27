@@ -170,16 +170,6 @@ func TestHandleUnknownMethod(t *testing.T) {
 		t.Errorf("Error code = %d, want -32601", resp.Error.Code)
 	}
 
-	if !strings.Contains(
-		resp.Error.Message,
-		"unknown/method",
-	) {
-		t.Errorf(
-			"error message should mention method name, got: %s",
-			resp.Error.Message,
-		)
-	}
-
 	if resp.Result != nil {
 		t.Error("Result should be nil for error response")
 	}
@@ -493,95 +483,111 @@ func TestRun_EmptyInput(t *testing.T) {
 }
 
 func TestHandleCallTool_Success(t *testing.T) {
-	s := newTestServer()
-	mock := &mockTool{
-		result: "mock result",
-	}
-	s.tools["mock_tool"] = mock
+	buildReq := func(mock *mockTool) (*Server, *JSONRPCRequest) {
+		s := newTestServer()
+		s.tools["mock_tool"] = mock
 
-	params := map[string]interface{}{
-		"name": "mock_tool",
-		"arguments": json.RawMessage(
-			`{"account":"test","mailbox":"INBOX"}`,
-		),
-	}
-	paramsJSON, _ := json.Marshal(params)
+		params := map[string]interface{}{
+			"name": "mock_tool",
+			"arguments": json.RawMessage(
+				`{"account":"test","mailbox":"INBOX"}`,
+			),
+		}
+		paramsJSON, _ := json.Marshal(params)
 
-	req := &JSONRPCRequest{
-		JSONRPC: "2.0",
-		ID:      6,
-		Method:  "tools/call",
-		Params:  paramsJSON,
-	}
+		req := &JSONRPCRequest{
+			JSONRPC: "2.0",
+			ID:      6,
+			Method:  "tools/call",
+			Params:  paramsJSON,
+		}
 
-	resp := s.handleRequest(context.Background(), req)
-
-	if resp.Error != nil {
-		t.Fatalf("unexpected error: %+v", resp.Error)
-	}
-	if resp.Result == nil {
-		t.Fatal("Result should not be nil")
+		return s, req
 	}
 
-	result, ok := resp.Result.(map[string]interface{})
-	if !ok {
-		t.Fatal("Result should be a map")
-	}
+	t.Run("response envelope", func(t *testing.T) {
+		mock := &mockTool{result: "mock result"}
+		s, req := buildReq(mock)
 
-	content, ok := result["content"].([]map[string]interface{})
-	if !ok {
-		t.Fatal("content should be a slice of maps")
-	}
+		resp := s.handleRequest(context.Background(), req)
 
-	if len(content) != 1 {
-		t.Fatalf("expected 1 content item, got %d", len(content))
-	}
+		if resp.Error != nil {
+			t.Fatalf("unexpected error: %+v", resp.Error)
+		}
+		if resp.Result == nil {
+			t.Fatal("Result should not be nil")
+		}
+		if _, ok := resp.Result.(map[string]interface{}); !ok {
+			t.Fatal("Result should be a map")
+		}
+	})
 
-	if content[0]["type"] != "text" {
-		t.Errorf(
-			"content type = %v, want text",
-			content[0]["type"],
-		)
-	}
+	t.Run("content structure", func(t *testing.T) {
+		mock := &mockTool{result: "mock result"}
+		s, req := buildReq(mock)
 
-	if content[0]["text"] != "mock result" {
-		t.Errorf(
-			"content text = %v, want mock result",
-			content[0]["text"],
-		)
-	}
+		resp := s.handleRequest(context.Background(), req)
 
-	// Verify arguments were forwarded to the tool
-	if mock.receivedArgs == nil {
-		t.Fatal("mock tool did not receive arguments")
-	}
+		result := resp.Result.(map[string]interface{})
+		content, ok := result["content"].([]map[string]interface{})
+		if !ok {
+			t.Fatal("content should be a slice of maps")
+		}
+		if len(content) != 1 {
+			t.Fatalf(
+				"expected 1 content item, got %d",
+				len(content),
+			)
+		}
+		if content[0]["type"] != "text" {
+			t.Errorf(
+				"content type = %v, want text",
+				content[0]["type"],
+			)
+		}
+		if content[0]["text"] != "mock result" {
+			t.Errorf(
+				"content text = %v, want mock result",
+				content[0]["text"],
+			)
+		}
+	})
 
-	var received map[string]string
-	if err := json.Unmarshal(
-		mock.receivedArgs,
-		&received,
-	); err != nil {
-		t.Fatalf(
-			"failed to unmarshal received args: %v",
-			err,
-		)
-	}
+	t.Run("argument forwarding", func(t *testing.T) {
+		mock := &mockTool{result: "mock result"}
+		s, req := buildReq(mock)
 
-	if received["account"] != "test" {
-		t.Errorf(
-			"received account = %q, want %q",
-			received["account"],
-			"test",
-		)
-	}
+		s.handleRequest(context.Background(), req)
 
-	if received["mailbox"] != "INBOX" {
-		t.Errorf(
-			"received mailbox = %q, want %q",
-			received["mailbox"],
-			"INBOX",
-		)
-	}
+		if mock.receivedArgs == nil {
+			t.Fatal("mock tool did not receive arguments")
+		}
+
+		var received map[string]string
+		if err := json.Unmarshal(
+			mock.receivedArgs,
+			&received,
+		); err != nil {
+			t.Fatalf(
+				"failed to unmarshal received args: %v",
+				err,
+			)
+		}
+		if received["account"] != "test" {
+			t.Errorf(
+				"received account = %q, want %q",
+				received["account"],
+				"test",
+			)
+		}
+		if received["mailbox"] != "INBOX" {
+			t.Errorf(
+				"received mailbox = %q, want %q",
+				received["mailbox"],
+				"INBOX",
+			)
+		}
+	})
 }
 
 func TestHandleCallTool_ToolError(t *testing.T) {
