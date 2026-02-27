@@ -229,6 +229,44 @@ func (m *ConnectionManager) ExpungeMessages(
 func (m *ConnectionManager) FindTrashMailbox(
 	account string,
 ) (string, error) {
+	return m.findSpecialMailbox(
+		account,
+		imap.MailboxAttrTrash,
+		"trash",
+	)
+}
+
+// FindSentMailbox scans the account's mailboxes for one with
+// the \Sent special-use attribute and returns its name.
+func (m *ConnectionManager) FindSentMailbox(
+	account string,
+) (string, error) {
+	return m.findSpecialMailbox(
+		account,
+		imap.MailboxAttrSent,
+		"sent",
+	)
+}
+
+// FindDraftsMailbox scans the account's mailboxes for one with
+// the \Drafts special-use attribute and returns its name.
+func (m *ConnectionManager) FindDraftsMailbox(
+	account string,
+) (string, error) {
+	return m.findSpecialMailbox(
+		account,
+		imap.MailboxAttrDrafts,
+		"drafts",
+	)
+}
+
+// findSpecialMailbox scans the account's mailboxes for one with
+// the given special-use attribute and returns its name.
+func (m *ConnectionManager) findSpecialMailbox(
+	account string,
+	attr imap.MailboxAttr,
+	label string,
+) (string, error) {
 	mailboxes, err := m.ListMailboxes(account)
 	if err != nil {
 		return "", fmt.Errorf(
@@ -238,13 +276,57 @@ func (m *ConnectionManager) FindTrashMailbox(
 	}
 
 	for _, mb := range mailboxes {
-		if slices.Contains(mb.Attrs, imap.MailboxAttrTrash) {
+		if slices.Contains(mb.Attrs, attr) {
 			return mb.Mailbox, nil
 		}
 	}
 
 	return "", fmt.Errorf(
-		"no trash mailbox found for account %q",
+		"no %s mailbox found for account %q",
+		label,
 		account,
+	)
+}
+
+// AppendMessage appends a message to the specified mailbox
+// with the given flags via IMAP APPEND.
+func (m *ConnectionManager) AppendMessage(
+	account, mailbox string,
+	msg []byte,
+	flags []imap.Flag,
+) error {
+	return m.withRetry(
+		account,
+		func(c *imapclient.Client) error {
+			size := int64(len(msg))
+			appendCmd := c.Append(
+				mailbox,
+				size,
+				&imap.AppendOptions{Flags: flags},
+			)
+
+			if _, err := appendCmd.Write(msg); err != nil {
+				return fmt.Errorf(
+					"failed to write append data: %w",
+					err,
+				)
+			}
+
+			if err := appendCmd.Close(); err != nil {
+				return fmt.Errorf(
+					"failed to close append command: %w",
+					err,
+				)
+			}
+
+			if _, err := appendCmd.Wait(); err != nil {
+				return fmt.Errorf(
+					"failed to append message: %w",
+					err,
+				)
+			}
+
+			return nil
+		},
 	)
 }

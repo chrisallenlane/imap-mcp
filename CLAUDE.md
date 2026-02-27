@@ -35,6 +35,9 @@ imap-mcp/
 │   │   ├── message_test.go      # Message operation tests
 │   │   ├── mailbox.go           # Mailbox IMAP operations (List, Examine, Status, Create, Delete)
 │   │   └── mailbox_test.go      # Mailbox operation tests
+│   ├── smtp/                    # SMTP sending manager
+│   │   ├── manager.go           # Manager struct, Send, dial
+│   │   └── manager_test.go      # Manager tests
 │   ├── server/                  # MCP server implementation
 │   │   ├── server.go            # JSON-RPC server, request routing
 │   │   ├── server_test.go       # Protocol tests
@@ -74,6 +77,10 @@ imap-mcp/
 │       ├── create_mailbox.go     # create_mailbox tool
 │       ├── create_mailbox_test.go
 │       ├── delete_mailbox.go     # delete_mailbox tool
+│       ├── compose.go            # Shared message composition (composeMessage, writeAttachment)
+│       ├── compose_test.go
+│       ├── send_message.go       # send_message tool
+│       ├── send_message_test.go
 │       └── delete_mailbox_test.go
 ├── config.example.toml          # Example configuration file
 ├── Makefile                     # Build automation
@@ -169,6 +176,8 @@ Reconnections are logged to stderr via `log.Printf`. The identity check `m.conns
 - **`FetchMessagesByUID(account, mailbox, uids, options)`** - Fetches message data for multiple UIDs in a mailbox (selects mailbox in read-only mode, then fetches via UID set)
 - **`MailboxStatus(account, mailbox)`** - Issues an IMAP STATUS command for a mailbox, returning message count and unseen count
 - **`FindTrashMailbox(account)`** - Scans mailboxes for the `\Trash` special-use attribute and returns its name
+- **`FindSentMailbox(account)`** - Scans mailboxes for the `\Sent` special-use attribute and returns its name
+- **`FindDraftsMailbox(account)`** - Scans mailboxes for the `\Drafts` special-use attribute and returns its name
 
 **Write Operations (read-write mailbox selection):**
 - **`StoreFlags(account, mailbox, uids, op, flags)`** - Sets or clears flags on messages identified by UIDs (selects mailbox read-write, then issues STORE with silent mode)
@@ -177,14 +186,34 @@ Reconnections are logged to stderr via `log.Printf`. The identity check `m.conns
 - **`ExpungeMessages(account, mailbox, uids)`** - Permanently removes messages identified by UIDs from a mailbox (IMAP UID EXPUNGE)
 - **`CreateMailbox(account, name)`** - Creates a new mailbox on the server (IMAP CREATE)
 - **`DeleteMailbox(account, name)`** - Deletes a mailbox from the server (IMAP DELETE)
+- **`AppendMessage(account, mailbox, msg, flags)`** - Appends a message to a mailbox with given flags (IMAP APPEND). Used for save_sent and save_draft.
 
 **Internal Helpers (in `manager.go`):**
 - **`selectMailbox(client, mailbox, readOnly)`** - Selects a mailbox in read-only or read-write mode and returns metadata. Used by both read and write operations.
 
 **Internal Helpers (in `message.go`):**
 - **`transferMessages(account, mailbox, uids, destMailbox, verb, op)`** - Shared helper for move/copy operations. Validates UIDs, selects the mailbox read-write, and executes the transfer operation with retry.
+- **`findSpecialMailbox(account, attr, label)`** - Shared helper for `FindTrashMailbox`, `FindSentMailbox`, and `FindDraftsMailbox`. Scans mailboxes for a given special-use attribute.
 
 Connections are thread-safe (protected by `sync.Mutex`). TLS vs insecure connections are selected based on the account's `tls` config field. Dead connections are detected and replaced transparently — callers never need to handle reconnection.
+
+### SMTP Manager (`internal/smtp/`)
+
+Manages per-operation SMTP connections for sending email. No connection pooling — each `Send` call connects, authenticates, sends, and disconnects.
+
+- **`NewManager(cfg)`** - Creates an SMTP manager from config
+- **`Config()`** - Returns the manager's config
+- **`Send(account, from, to, msg)`** - Sends an email via SMTP. Validates account exists and has `smtp_enabled = true`. Supports STARTTLS (default), implicit TLS, and plain connections.
+
+The `dial` helper selects the connection method based on `smtp_tls` config: `"starttls"` (default), `"implicit"`, or `"none"`.
+
+### Message Composition (`internal/tools/compose.go`)
+
+Shared message composition logic used by `send_message`, `save_draft`, and `reply_message`. Creates RFC 5322 messages using `go-message/mail`.
+
+- **`composeMessage(params)`** - Creates a complete email message. Returns raw bytes. Handles plain text messages and multipart messages with attachments.
+- **`detectMediaType(filename, data)`** - Determines MIME type by extension first, falling back to content sniffing.
+- **`toMailAddresses(addrs...)`** - Converts string addresses to `go-message/mail.Address` pointers.
 
 ### Tool Interface (`internal/tools/tool.go`)
 
@@ -210,17 +239,17 @@ Tools are registered in `registerTools()`:
 s.tools["tool_name"] = tools.NewToolName(s.imap)
 ```
 
-The server automatically discovers and exposes all registered tools via `tools/list`.
+The server automatically discovers and exposes all registered tools via `tools/list`. SMTP tools (`send_message`, `save_draft`, `reply_message`) are only registered when at least one account has `smtp_enabled = true`.
 
 ### Server Construction (`internal/server/server.go`)
 
-The server accepts an IMAP connection manager:
+The server accepts an IMAP connection manager and an SMTP manager:
 
 ```go
-s := server.New(mgr)
+s := server.New(mgr, smtp)
 ```
 
-The manager is available as `s.imap` for tools to access IMAP connections.
+The IMAP manager is available as `s.imap` and the SMTP manager as `s.smtp`.
 
 ## Development Workflow
 
@@ -406,6 +435,7 @@ Every new tool should have:
 - **`delete_messages`** - Deletes messages by moving to Trash (default) or permanently expunging (`permanent: true`). Trash folder detected via SPECIAL-USE `\Trash` attribute. Returns error with guidance if no Trash folder found or messages are already in Trash. Permanent delete sets `\Deleted` flag then issues UID EXPUNGE. Takes required `account`, `mailbox`, and `uids` parameters, plus optional `permanent` boolean.
 - **`create_mailbox`** - Creates a new mailbox (folder) via IMAP CREATE. Intermediate hierarchy levels are created automatically by most servers. Takes required `account` and `name` parameters.
 - **`delete_mailbox`** - Deletes a mailbox (folder) via IMAP DELETE. Refuses to delete INBOX (case-insensitive) or any mailbox with SPECIAL-USE attributes (`\Sent`, `\Trash`, `\Drafts`, `\Junk`, `\Archive`, `\Flagged`). Takes required `account` and `name` parameters.
+- **`send_message`** - Sends an email via SMTP. Composes a proper RFC 5322 message with headers, body, and optional file attachments. Supports `to`, `cc`, and `bcc` recipients. From address defaults to IMAP `username` unless `smtp_from` is set. Optionally saves to Sent folder via IMAP APPEND when `save_sent = true`. Only available when `smtp_enabled = true`. Takes required `account`, `to`, `subject`, and `body` parameters, plus optional `cc`, `bcc`, and `attachments` (file paths).
 
 ## Configuration
 
@@ -465,7 +495,8 @@ Tools define narrow interfaces for the ConnectionManager methods they need (e.g.
 
 - `github.com/BurntSushi/toml` - TOML config parsing
 - `github.com/emersion/go-imap/v2` - IMAP client
-- `github.com/emersion/go-message` - RFC 2822/MIME message parsing (used by `get_message` for body extraction and attachment metadata)
+- `github.com/emersion/go-message` - RFC 2822/MIME message parsing and composition (used by `get_message` for body extraction, `compose.go` for message creation)
+- `github.com/emersion/go-smtp` - SMTP client (used by `internal/smtp/` for sending email)
 - `golang.org/x/net/html` - HTML tokenizer/parser (used by `HTMLToText` for HTML-to-text conversion of email bodies)
 
 ## Version Information
