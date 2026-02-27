@@ -423,7 +423,7 @@ Every new tool should have:
 - One tool per file, except `move_messages` and `copy_messages` which share a `transferTool` implementation (and their constructors) in `transfer_messages.go`
 - Tool interface defined in `tool.go`
 - MIME body parsing separated into `parse.go` (parsing concern) while `get_message.go` handles presentation
-- Shared formatting helpers (e.g., `formatFlags`, `formatMessage`, `formatUIDs`, `toIMAPUIDs`, `formatFlagNames`, `envelopeDate`, `formatSize`) and UID parsing helpers (`parseUID`, `parseUIDs`, `parseCommaSeparatedUIDs`) live in `format.go`; `formatAddresses` lives in `get_message.go`
+- Shared formatting helpers (e.g., `formatFlags`, `formatMessage`, `formatUIDs`, `toIMAPUIDs`, `formatFlagNames`, `envelopeDate`, `formatSize`, `formatAddresses`) and UID parsing helpers (`parseUID`, `parseUIDs`, `parseCommaSeparatedUIDs`) live in `format.go`
 - Shared message composition logic lives in `compose.go` (`composeMessage`, `detectMediaType`, `toMailAddresses`)
 - Shared SMTP helpers live in `smtp_helpers.go` (`resolveSMTPAccount`, `trySaveToSent`, `collectRecipients`) — used by `send_message`, `save_draft`, and `reply_message`
 - Shared test helpers (e.g., `assertContains`) live in `helpers_test.go`
