@@ -248,6 +248,36 @@ func envelopeDate(
 	return time.Time{}
 }
 
+// formatAddresses formats a slice of IMAP addresses as a
+// comma-separated string. Addresses with a display name
+// render as "Name <email>", otherwise just "email".
+func formatAddresses(addrs []imap.Address) string {
+	if len(addrs) == 0 {
+		return "(unknown)"
+	}
+
+	parts := make([]string, 0, len(addrs))
+	for _, addr := range addrs {
+		email := addr.Addr()
+		if email == "" {
+			email = "(unknown)"
+		}
+		if addr.Name != "" {
+			parts = append(
+				parts,
+				fmt.Sprintf(
+					"%s <%s>",
+					addr.Name,
+					email,
+				),
+			)
+		} else {
+			parts = append(parts, email)
+		}
+	}
+	return strings.Join(parts, ", ")
+}
+
 // formatSize formats a byte count as a human-readable string.
 func formatSize(bytes int) string {
 	const kb = 1024
