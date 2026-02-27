@@ -74,6 +74,10 @@ func (s *Server) registerTools() {
 			s.smtp,
 			s.imap,
 		)
+		s.tools["save_draft"] = tools.NewSaveDraft(
+			s.smtp,
+			s.imap,
+		)
 	}
 }
 
