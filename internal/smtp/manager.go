@@ -1,5 +1,6 @@
-// Package smtp manages SMTP connections for sending email.
-package smtp
+// Package smtpmanager manages SMTP connections for sending
+// email.
+package smtpmanager
 
 import (
 	"crypto/tls"

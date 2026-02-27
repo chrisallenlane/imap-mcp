@@ -12,7 +12,7 @@ import (
 	"time"
 
 	imapmanager "github.com/chrisallenlane/imap-mcp/internal/imap"
-	smtpmanager "github.com/chrisallenlane/imap-mcp/internal/smtp"
+	"github.com/chrisallenlane/imap-mcp/internal/smtp"
 	"github.com/chrisallenlane/imap-mcp/internal/tools"
 )
 

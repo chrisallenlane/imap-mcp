@@ -11,7 +11,7 @@ import (
 	"github.com/chrisallenlane/imap-mcp/internal/config"
 	imapmanager "github.com/chrisallenlane/imap-mcp/internal/imap"
 	"github.com/chrisallenlane/imap-mcp/internal/server"
-	smtpmanager "github.com/chrisallenlane/imap-mcp/internal/smtp"
+	"github.com/chrisallenlane/imap-mcp/internal/smtp"
 )
 
 func main() {
