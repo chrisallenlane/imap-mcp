@@ -129,6 +129,15 @@ The MCP server communicates via stdin/stdout:
 
 The `--config` flag is required. Use `--version` to print the version and exit.
 
+### Tested Providers
+
+This project has been tested against the following providers:
+
+- [Gmail](https://mail.google.com/)
+- [Protonmail](https://proton.me/mail) (via [Protonmail Mail Bridge](https://proton.me/mail/bridge))
+
+Other standard IMAP/SMTP providers should work but have not been verified.
+
 ## Development
 
 ### Build
