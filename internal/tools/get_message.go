@@ -277,24 +277,3 @@ func formatAddresses(addrs []imap.Address) string {
 	}
 	return strings.Join(parts, ", ")
 }
-
-// formatSize formats a byte count as a human-readable string.
-func formatSize(bytes int) string {
-	const kb = 1024
-	const mb = 1024 * kb
-
-	switch {
-	case bytes >= mb:
-		return fmt.Sprintf(
-			"%.1f MB",
-			float64(bytes)/float64(mb),
-		)
-	case bytes >= kb:
-		return fmt.Sprintf(
-			"%d KB",
-			bytes/kb,
-		)
-	default:
-		return fmt.Sprintf("%d B", bytes)
-	}
-}
