@@ -12,6 +12,9 @@ import (
 	"github.com/emersion/go-imap/v2/imapclient"
 )
 
+// dateFormatRFC2822 is the date format used for email display.
+const dateFormatRFC2822 = "Mon, 02 Jan 2006 15:04:05 -0700"
+
 // flagLabels maps IMAP flags to human-readable labels.
 var flagLabels = []struct {
 	flag  imap.Flag

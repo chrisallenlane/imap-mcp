@@ -243,9 +243,7 @@ func formatEnvelope(
 	fmt.Fprintf(
 		b,
 		"  Date:    %s\n",
-		env.Date.Format(
-			"Mon, 02 Jan 2006 15:04:05 -0700",
-		),
+		env.Date.Format(dateFormatRFC2822),
 	)
 	fmt.Fprintf(b, "  Subject: %s\n", env.Subject)
 }

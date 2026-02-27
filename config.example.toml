@@ -1,9 +1,15 @@
 [accounts.gmail]
-host     = "imap.gmail.com"
-port     = 993
-username = "user@gmail.com"
-password = "app-password"
-tls      = true
+host         = "imap.gmail.com"
+port         = 993
+username     = "user@gmail.com"
+password     = "app-password"
+tls          = true
+smtp_enabled = true                # opt-in to SMTP sending (default: false)
+smtp_host    = "smtp.gmail.com"
+smtp_port    = 587
+smtp_tls     = "starttls"          # "starttls", "implicit", or "none"
+# smtp_from  = "user@gmail.com"    # defaults to username
+# save_sent  = false               # save sent messages via IMAP APPEND
 
 [accounts.protonmail]
 host     = "127.0.0.1"

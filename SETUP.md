@@ -22,6 +22,23 @@ tls      = true
 
 All fields (host, port, username, password) are required per account. Set `tls = true` for TLS connections (port 993) or `tls = false` for plaintext (e.g., local IMAP bridges).
 
+### SMTP (Sending)
+
+To enable sending, add SMTP fields to an account:
+
+```toml
+[accounts.gmail]
+# ... IMAP fields above ...
+smtp_enabled = true
+smtp_host    = "smtp.gmail.com"
+smtp_port    = 587
+smtp_tls     = "starttls"   # "starttls", "implicit", or "none"
+# smtp_from = "user@gmail.com"  # defaults to username
+# save_sent = false             # save sent messages via IMAP APPEND
+```
+
+When `smtp_enabled = true`, the fields `smtp_host`, `smtp_port`, and `smtp_tls` are required. The three sending tools (`send_message`, `save_draft`, `reply_message`) are only registered when at least one account has `smtp_enabled = true`.
+
 `config.toml` is gitignored because it contains credentials. See `config.example.toml` for a full example.
 
 ## Integration
@@ -127,6 +144,15 @@ make setup
 4. Test the server directly with stdin/stdout
 5. Check Claude logs for errors
 
+### SMTP tools not available
+
+The `send_message`, `save_draft`, and `reply_message` tools only appear when at least one account has `smtp_enabled = true` in the config. Verify:
+
+1. `smtp_enabled = true` is set for the account
+2. `smtp_host`, `smtp_port`, and `smtp_tls` are all provided
+3. `smtp_tls` is one of `"starttls"`, `"implicit"`, or `"none"`
+4. Restart Claude Code or Claude Desktop after changing the config
+
 ### Binary not found
 
 Make sure you're using the absolute path to the binary. `make setup` handles this automatically. If registering manually:
@@ -141,7 +167,7 @@ claude mcp add imap-mcp ./dist/imap-mcp
 
 ## Security Notes
 
-- Store IMAP credentials in `config.toml`, which is gitignored
+- Store IMAP and SMTP credentials in `config.toml`, which is gitignored
 - Do not commit `config.toml` to version control
 - Consider file permissions on `config.toml` (e.g., `chmod 600 config.toml`)
-- The MCP server runs locally and communicates via stdio (no network exposure beyond IMAP connections)
+- The MCP server runs locally and communicates via stdio (no network exposure beyond IMAP/SMTP connections)
