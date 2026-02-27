@@ -224,6 +224,29 @@ func writeAttachment(
 	filename := filepath.Base(path)
 	mediaType := detectMediaType(filename, data)
 
+	return writeAttachmentData(
+		mw, filename, mediaType, data,
+	)
+}
+
+// writeRawAttachment writes a pre-loaded attachment (e.g.,
+// forwarded from a source message) as a MIME attachment part.
+func writeRawAttachment(
+	mw *gomail.Writer,
+	att rawAttachment,
+) error {
+	return writeAttachmentData(
+		mw, att.Filename, att.MediaType, att.Data,
+	)
+}
+
+// writeAttachmentData writes a MIME attachment part with the
+// given metadata and content.
+func writeAttachmentData(
+	mw *gomail.Writer,
+	filename, mediaType string,
+	data []byte,
+) error {
 	var ah gomail.AttachmentHeader
 	ah.SetFilename(filename)
 	ah.SetContentType(mediaType, nil)
@@ -249,44 +272,6 @@ func writeAttachment(
 		return fmt.Errorf(
 			"failed to close attachment %q: %w",
 			filename,
-			err,
-		)
-	}
-
-	return nil
-}
-
-// writeRawAttachment writes a pre-loaded attachment (e.g.,
-// forwarded from a source message) as a MIME attachment part.
-func writeRawAttachment(
-	mw *gomail.Writer,
-	att rawAttachment,
-) error {
-	var ah gomail.AttachmentHeader
-	ah.SetFilename(att.Filename)
-	ah.SetContentType(att.MediaType, nil)
-
-	aw, err := mw.CreateAttachment(ah)
-	if err != nil {
-		return fmt.Errorf(
-			"failed to create attachment %q: %w",
-			att.Filename,
-			err,
-		)
-	}
-
-	if _, err := aw.Write(att.Data); err != nil {
-		return fmt.Errorf(
-			"failed to write attachment %q: %w",
-			att.Filename,
-			err,
-		)
-	}
-
-	if err := aw.Close(); err != nil {
-		return fmt.Errorf(
-			"failed to close attachment %q: %w",
-			att.Filename,
 			err,
 		)
 	}

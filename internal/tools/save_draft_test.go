@@ -11,7 +11,7 @@ import (
 	"github.com/chrisallenlane/imap-mcp/internal/config"
 )
 
-// mockDraftConfigProvider implements draftConfigProvider.
+// mockDraftConfigProvider implements configProvider.
 type mockDraftConfigProvider struct {
 	config *config.Config
 }

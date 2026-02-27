@@ -152,27 +152,11 @@ func (t *SendMessage) Execute(
 		return "", fmt.Errorf("body is required")
 	}
 
-	cfg := t.sender.Config()
-	acct, ok := cfg.Accounts[params.Account]
-	if !ok {
-		return "", fmt.Errorf(
-			"unknown account: %q",
-			params.Account,
-		)
-	}
-
-	if !acct.SMTPEnabled {
-		return "", fmt.Errorf(
-			"SMTP is not enabled for account %q. "+
-				"Set smtp_enabled = true in your "+
-				"config file.",
-			params.Account,
-		)
-	}
-
-	from := acct.SMTPFrom
-	if from == "" {
-		from = acct.Username
+	acct, from, err := resolveSMTPAccount(
+		t.sender.Config(), params.Account,
+	)
+	if err != nil {
+		return "", err
 	}
 
 	msgBytes, err := composeMessage(composeParams{
@@ -191,15 +175,9 @@ func (t *SendMessage) Execute(
 		)
 	}
 
-	// Collect all envelope recipients.
-	allRecipients := make(
-		[]string,
-		0,
-		len(params.To)+len(params.CC)+len(params.BCC),
+	allRecipients := collectRecipients(
+		params.To, params.CC, params.BCC,
 	)
-	allRecipients = append(allRecipients, params.To...)
-	allRecipients = append(allRecipients, params.CC...)
-	allRecipients = append(allRecipients, params.BCC...)
 
 	if err := t.sender.Send(
 		params.Account,
@@ -214,22 +192,8 @@ func (t *SendMessage) Execute(
 	}
 
 	// Save to Sent folder if configured.
-	savedToSent := false
-	if acct.SaveSent {
-		sentMailbox, err := t.saver.FindSentMailbox(
-			params.Account,
-		)
-		if err == nil {
-			if appendErr := t.saver.AppendMessage(
-				params.Account,
-				sentMailbox,
-				msgBytes,
-				[]imap.Flag{imap.FlagSeen},
-			); appendErr == nil {
-				savedToSent = true
-			}
-		}
-	}
+	savedToSent := acct.SaveSent &&
+		trySaveToSent(t.saver, params.Account, msgBytes)
 
 	return formatSendResult(
 		params.To,

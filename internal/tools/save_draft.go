@@ -11,11 +11,11 @@ import (
 	"github.com/chrisallenlane/imap-mcp/internal/config"
 )
 
-// draftConfigProvider is a narrow interface for accessing
+// configProvider is a narrow interface for accessing
 // account config to resolve the From address.
 // *smtp.Manager and *imapmanager.ConnectionManager satisfy
 // this implicitly.
-type draftConfigProvider interface {
+type configProvider interface {
 	Config() *config.Config
 }
 
@@ -34,13 +34,13 @@ type draftSaver interface {
 // SaveDraft is an MCP tool that composes a message and saves
 // it to the Drafts folder.
 type SaveDraft struct {
-	cfg   draftConfigProvider
+	cfg   configProvider
 	saver draftSaver
 }
 
 // NewSaveDraft creates a new SaveDraft tool.
 func NewSaveDraft(
-	cfg draftConfigProvider,
+	cfg configProvider,
 	saver draftSaver,
 ) *SaveDraft {
 	return &SaveDraft{cfg: cfg, saver: saver}
@@ -135,27 +135,11 @@ func (t *SaveDraft) Execute(
 		return "", fmt.Errorf("account is required")
 	}
 
-	cfg := t.cfg.Config()
-	acct, ok := cfg.Accounts[params.Account]
-	if !ok {
-		return "", fmt.Errorf(
-			"unknown account: %q",
-			params.Account,
-		)
-	}
-
-	if !acct.SMTPEnabled {
-		return "", fmt.Errorf(
-			"SMTP is not enabled for account %q. "+
-				"Set smtp_enabled = true in your "+
-				"config file.",
-			params.Account,
-		)
-	}
-
-	from := acct.SMTPFrom
-	if from == "" {
-		from = acct.Username
+	_, from, err := resolveSMTPAccount(
+		t.cfg.Config(), params.Account,
+	)
+	if err != nil {
+		return "", err
 	}
 
 	msgBytes, err := composeMessage(composeParams{

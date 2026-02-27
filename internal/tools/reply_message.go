@@ -5,60 +5,25 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"strings"
 
 	imaplib "github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
-
-	"github.com/chrisallenlane/imap-mcp/internal/config"
 )
-
-// replySender is a narrow interface for sending reply/forward
-// messages via SMTP.
-type replySender interface {
-	Send(
-		account, from string,
-		to []string,
-		msg io.Reader,
-	) error
-	Config() *config.Config
-}
-
-// replyGetter is a narrow interface for fetching source
-// messages by UID.
-type replyGetter interface {
-	FetchMessagesByUID(
-		account, mailbox string,
-		uids []imaplib.UID,
-		options *imaplib.FetchOptions,
-	) ([]*imapclient.FetchMessageBuffer, error)
-}
-
-// replySentSaver is a narrow interface for saving sent
-// replies via IMAP APPEND.
-type replySentSaver interface {
-	FindSentMailbox(account string) (string, error)
-	AppendMessage(
-		account, mailbox string,
-		msg []byte,
-		flags []imaplib.Flag,
-	) error
-}
 
 // ReplyMessage is an MCP tool that replies to, replies all,
 // or forwards an email message.
 type ReplyMessage struct {
-	getter replyGetter
-	sender replySender
-	saver  replySentSaver
+	getter messageGetter
+	sender emailSender
+	saver  sentSaver
 }
 
 // NewReplyMessage creates a new ReplyMessage tool.
 func NewReplyMessage(
-	getter replyGetter,
-	sender replySender,
-	saver replySentSaver,
+	getter messageGetter,
+	sender emailSender,
+	saver sentSaver,
 ) *ReplyMessage {
 	return &ReplyMessage{
 		getter: getter,
@@ -192,26 +157,11 @@ func (t *ReplyMessage) Execute(
 		)
 	}
 
-	cfg := t.sender.Config()
-	acct, ok := cfg.Accounts[params.Account]
-	if !ok {
-		return "", fmt.Errorf(
-			"unknown account: %q",
-			params.Account,
-		)
-	}
-	if !acct.SMTPEnabled {
-		return "", fmt.Errorf(
-			"SMTP is not enabled for account %q. "+
-				"Set smtp_enabled = true in your "+
-				"config file.",
-			params.Account,
-		)
-	}
-
-	from := acct.SMTPFrom
-	if from == "" {
-		from = acct.Username
+	acct, from, err := resolveSMTPAccount(
+		t.sender.Config(), params.Account,
+	)
+	if err != nil {
+		return "", err
 	}
 
 	// Fetch the source message.
@@ -277,22 +227,8 @@ func (t *ReplyMessage) Execute(
 	}
 
 	// Save to Sent folder if configured.
-	savedToSent := false
-	if acct.SaveSent {
-		sentMailbox, err := t.saver.FindSentMailbox(
-			params.Account,
-		)
-		if err == nil {
-			if appendErr := t.saver.AppendMessage(
-				params.Account,
-				sentMailbox,
-				msgBytes,
-				[]imaplib.Flag{imaplib.FlagSeen},
-			); appendErr == nil {
-				savedToSent = true
-			}
-		}
-	}
+	savedToSent := acct.SaveSent &&
+		trySaveToSent(t.saver, params.Account, msgBytes)
 
 	return formatReplyResult(
 		params.Mode,
@@ -440,17 +376,9 @@ func buildReplyParams(
 		cp.Body = quoteForward(userBody, env, srcBody)
 	}
 
-	// Collect all envelope recipients.
-	allRecipients := make(
-		[]string,
-		0,
-		len(cp.To)+len(cp.CC)+len(cp.BCC),
-	)
-	allRecipients = append(allRecipients, cp.To...)
-	allRecipients = append(allRecipients, cp.CC...)
-	allRecipients = append(allRecipients, cp.BCC...)
-
-	return cp, allRecipients, nil
+	return cp, collectRecipients(
+		cp.To, cp.CC, cp.BCC,
+	), nil
 }
 
 // replyTo returns the To addresses for a reply. Uses override
@@ -566,7 +494,7 @@ func quoteReply(
 	}
 
 	date := env.Date.Format(
-		"Mon, 02 Jan 2006 15:04:05 -0700",
+		dateFormatRFC2822,
 	)
 
 	fmt.Fprintf(
@@ -609,7 +537,7 @@ func quoteForward(
 		&b,
 		"Date: %s\n",
 		env.Date.Format(
-			"Mon, 02 Jan 2006 15:04:05 -0700",
+			dateFormatRFC2822,
 		),
 	)
 	fmt.Fprintf(&b, "Subject: %s\n", env.Subject)
