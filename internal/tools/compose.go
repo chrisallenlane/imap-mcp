@@ -13,6 +13,15 @@ import (
 	gomail "github.com/emersion/go-message/mail"
 )
 
+// rawAttachment holds an attachment's content and metadata
+// for inclusion in a composed message. Used for forwarding
+// attachments from a source message.
+type rawAttachment struct {
+	Filename  string
+	MediaType string
+	Data      []byte
+}
+
 // composeParams holds parameters for composing an email.
 type composeParams struct {
 	From        string
@@ -21,7 +30,14 @@ type composeParams struct {
 	BCC         []string
 	Subject     string
 	Body        string
-	Attachments []string
+	Attachments []string // file paths
+
+	// Threading headers (for reply/forward).
+	InReplyTo  string
+	References []string
+
+	// Pre-loaded attachments (for forwarding from source).
+	RawAttachments []rawAttachment
 }
 
 // composeMessage creates an RFC 5322 message from the given
@@ -65,11 +81,23 @@ func composeMessage(p composeParams) ([]byte, error) {
 		)
 	}
 
-	if len(p.Attachments) == 0 {
+	// Threading headers for reply/forward.
+	if p.InReplyTo != "" {
+		h.Set("In-Reply-To", "<"+p.InReplyTo+">")
+	}
+	if len(p.References) > 0 {
+		h.SetMsgIDList("References", p.References)
+	}
+
+	hasAttachments := len(p.Attachments) > 0 ||
+		len(p.RawAttachments) > 0
+	if !hasAttachments {
 		return composePlainMessage(&buf, h, p.Body)
 	}
 
-	return composeMultipartMessage(&buf, h, p.Body, p.Attachments)
+	return composeMultipartMessage(
+		&buf, h, p.Body, p.Attachments, p.RawAttachments,
+	)
 }
 
 // composePlainMessage creates a simple text/plain message.
@@ -108,12 +136,13 @@ func composePlainMessage(
 }
 
 // composeMultipartMessage creates a multipart/mixed message
-// with a text body and file attachments.
+// with a text body, file attachments, and/or raw attachments.
 func composeMultipartMessage(
 	buf *bytes.Buffer,
 	h gomail.Header,
 	body string,
 	attachments []string,
+	rawAttachments []rawAttachment,
 ) ([]byte, error) {
 	mw, err := gomail.CreateWriter(buf, h)
 	if err != nil {
@@ -151,9 +180,18 @@ func composeMultipartMessage(
 		)
 	}
 
-	// Write each attachment.
+	// Write file attachments.
 	for _, path := range attachments {
 		if err := writeAttachment(mw, path); err != nil {
+			return nil, err
+		}
+	}
+
+	// Write raw attachments (forwarded from source).
+	for _, att := range rawAttachments {
+		if err := writeRawAttachment(
+			mw, att,
+		); err != nil {
 			return nil, err
 		}
 	}
@@ -211,6 +249,44 @@ func writeAttachment(
 		return fmt.Errorf(
 			"failed to close attachment %q: %w",
 			filename,
+			err,
+		)
+	}
+
+	return nil
+}
+
+// writeRawAttachment writes a pre-loaded attachment (e.g.,
+// forwarded from a source message) as a MIME attachment part.
+func writeRawAttachment(
+	mw *gomail.Writer,
+	att rawAttachment,
+) error {
+	var ah gomail.AttachmentHeader
+	ah.SetFilename(att.Filename)
+	ah.SetContentType(att.MediaType, nil)
+
+	aw, err := mw.CreateAttachment(ah)
+	if err != nil {
+		return fmt.Errorf(
+			"failed to create attachment %q: %w",
+			att.Filename,
+			err,
+		)
+	}
+
+	if _, err := aw.Write(att.Data); err != nil {
+		return fmt.Errorf(
+			"failed to write attachment %q: %w",
+			att.Filename,
+			err,
+		)
+	}
+
+	if err := aw.Close(); err != nil {
+		return fmt.Errorf(
+			"failed to close attachment %q: %w",
+			att.Filename,
 			err,
 		)
 	}
