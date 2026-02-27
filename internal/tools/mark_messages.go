@@ -87,11 +87,11 @@ func (t *MarkMessages) Execute(
 	args json.RawMessage,
 ) (string, error) {
 	var params struct {
-		Account string   `json:"account"`
-		Mailbox string   `json:"mailbox"`
-		UIDs    []uint32 `json:"uids"`
-		Read    *bool    `json:"read"`
-		Flagged *bool    `json:"flagged"`
+		Account string          `json:"account"`
+		Mailbox string          `json:"mailbox"`
+		UIDs    json.RawMessage `json:"uids"`
+		Read    *bool           `json:"read"`
+		Flagged *bool           `json:"flagged"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return "", fmt.Errorf(
@@ -106,7 +106,12 @@ func (t *MarkMessages) Execute(
 	if params.Mailbox == "" {
 		return "", fmt.Errorf("mailbox is required")
 	}
-	if len(params.UIDs) == 0 {
+
+	parsedUIDs, err := parseUIDs(params.UIDs)
+	if err != nil {
+		return "", err
+	}
+	if len(parsedUIDs) == 0 {
 		return "", fmt.Errorf("uids must not be empty")
 	}
 	if params.Read == nil && params.Flagged == nil {
@@ -116,7 +121,7 @@ func (t *MarkMessages) Execute(
 		)
 	}
 
-	uids := toIMAPUIDs(params.UIDs)
+	uids := toIMAPUIDs(parsedUIDs)
 
 	var addFlags, removeFlags []imap.Flag
 
@@ -175,7 +180,7 @@ func (t *MarkMessages) Execute(
 	return formatMarkResult(
 		params.Account,
 		params.Mailbox,
-		params.UIDs,
+		parsedUIDs,
 		addFlags,
 		removeFlags,
 	), nil

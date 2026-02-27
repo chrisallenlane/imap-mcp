@@ -53,6 +53,129 @@ func TestParseUID(t *testing.T) {
 	}
 }
 
+func TestParseUIDs(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    []uint32
+		wantErr bool
+	}{
+		{
+			"integer array",
+			"[1,2,3]",
+			[]uint32{1, 2, 3},
+			false,
+		},
+		{
+			"string array",
+			`["1","2","3"]`,
+			[]uint32{1, 2, 3},
+			false,
+		},
+		{
+			"mixed array",
+			`[1,"2",3]`,
+			[]uint32{1, 2, 3},
+			false,
+		},
+		{
+			"stringified JSON array",
+			`"[57086, 57093, 57096, 57098]"`,
+			[]uint32{57086, 57093, 57096, 57098},
+			false,
+		},
+		{
+			"comma-separated string",
+			`"57086, 57093, 57096"`,
+			[]uint32{57086, 57093, 57096},
+			false,
+		},
+		{
+			"comma-separated no spaces",
+			`"1,2,3"`,
+			[]uint32{1, 2, 3},
+			false,
+		},
+		{
+			"single value string",
+			`"57086"`,
+			[]uint32{57086},
+			false,
+		},
+		{
+			"single number",
+			"57086",
+			[]uint32{57086},
+			false,
+		},
+		{
+			"empty array",
+			"[]",
+			[]uint32{},
+			false,
+		},
+		{
+			"empty",
+			"",
+			nil,
+			true,
+		},
+		{
+			"non-numeric string element",
+			`["abc"]`,
+			nil,
+			true,
+		},
+		{
+			"non-numeric comma string",
+			`"abc, def"`,
+			nil,
+			true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseUIDs(
+				json.RawMessage(tt.input),
+			)
+			if (err != nil) != tt.wantErr {
+				t.Errorf(
+					"parseUIDs(%q) error = %v, "+
+						"wantErr %v",
+					tt.input,
+					err,
+					tt.wantErr,
+				)
+				return
+			}
+			if !tt.wantErr &&
+				len(got) != len(tt.want) {
+				t.Errorf(
+					"parseUIDs(%q) = %v, "+
+						"want %v",
+					tt.input,
+					got,
+					tt.want,
+				)
+				return
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf(
+						"parseUIDs(%q)[%d] "+
+							"= %d, want %d",
+						tt.input,
+						i,
+						got[i],
+						tt.want[i],
+					)
+				}
+			}
+		})
+	}
+}
+
 func TestFormatFlags(t *testing.T) {
 	tests := []struct {
 		name  string

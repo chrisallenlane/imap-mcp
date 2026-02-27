@@ -231,6 +231,47 @@ func TestDeleteMessages_PermanentDelete(t *testing.T) {
 	assertContains(t, result, "WARNING")
 }
 
+func TestDeleteMessages_UIDsAsStrings(t *testing.T) {
+	// Claude sometimes passes UIDs as quoted strings;
+	// verify the tool accepts either form.
+	mock := &mockDeleter{
+		trashMailbox: "Trash",
+	}
+	tool := NewDeleteMessages(mock)
+
+	result, err := tool.Execute(
+		context.Background(),
+		json.RawMessage(
+			`{"account":"gmail","mailbox":"INBOX",`+
+				`"uids":["5201","5202"]}`,
+		),
+	)
+	if err != nil {
+		t.Fatalf(
+			"Execute() unexpected error: %v", err,
+		)
+	}
+
+	if len(mock.moveCalls) != 1 {
+		t.Fatalf(
+			"expected 1 MoveMessages call, got %d",
+			len(mock.moveCalls),
+		)
+	}
+
+	if len(mock.moveCalls[0].uids) != 2 {
+		t.Errorf(
+			"uids count = %d, want 2",
+			len(mock.moveCalls[0].uids),
+		)
+	}
+
+	assertContains(
+		t, result, "Moved 2 message(s) to Trash",
+	)
+	assertContains(t, result, "5201, 5202")
+}
+
 func TestDeleteMessages_EmptyUIDs(t *testing.T) {
 	mock := &mockDeleter{}
 	tool := NewDeleteMessages(mock)

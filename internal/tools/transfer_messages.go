@@ -86,10 +86,10 @@ func (t *transferTool) Execute(
 	args json.RawMessage,
 ) (string, error) {
 	var params struct {
-		Account     string   `json:"account"`
-		Mailbox     string   `json:"mailbox"`
-		UIDs        []uint32 `json:"uids"`
-		Destination string   `json:"destination"`
+		Account     string          `json:"account"`
+		Mailbox     string          `json:"mailbox"`
+		UIDs        json.RawMessage `json:"uids"`
+		Destination string          `json:"destination"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return "", fmt.Errorf(
@@ -104,7 +104,12 @@ func (t *transferTool) Execute(
 	if params.Mailbox == "" {
 		return "", fmt.Errorf("mailbox is required")
 	}
-	if len(params.UIDs) == 0 {
+
+	parsedUIDs, err := parseUIDs(params.UIDs)
+	if err != nil {
+		return "", err
+	}
+	if len(parsedUIDs) == 0 {
 		return "", fmt.Errorf("uids must not be empty")
 	}
 	if params.Destination == "" {
@@ -119,7 +124,7 @@ func (t *transferTool) Execute(
 		)
 	}
 
-	uids := toIMAPUIDs(params.UIDs)
+	uids := toIMAPUIDs(parsedUIDs)
 
 	if err := t.fn(
 		params.Account,
@@ -138,7 +143,7 @@ func (t *transferTool) Execute(
 		t.pastVerb,
 		params.Account,
 		params.Mailbox,
-		params.UIDs,
+		parsedUIDs,
 		params.Destination,
 	), nil
 }

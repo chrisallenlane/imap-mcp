@@ -60,6 +60,130 @@ func TestTransferTool_InputSchema(t *testing.T) {
 	)
 }
 
+func TestTransferTool_UIDsAsStrings(t *testing.T) {
+	// Claude sometimes passes UIDs as quoted strings;
+	// verify the tool accepts either form.
+	mock := &mockTransfer{}
+	tool := newTestTransferTool(mock)
+
+	result, err := tool.Execute(
+		context.Background(),
+		json.RawMessage(
+			`{"account":"gmail","mailbox":"INBOX",`+
+				`"uids":["5201","5202","5203"],`+
+				`"destination":"Work/Projects"}`,
+		),
+	)
+	if err != nil {
+		t.Fatalf(
+			"Execute() unexpected error: %v", err,
+		)
+	}
+
+	if len(mock.calls) != 1 {
+		t.Fatalf(
+			"expected 1 call, got %d",
+			len(mock.calls),
+		)
+	}
+
+	if len(mock.calls[0].uids) != 3 {
+		t.Errorf(
+			"uids count = %d, want 3",
+			len(mock.calls[0].uids),
+		)
+	}
+
+	assertContains(
+		t, result, "Moved 3 message(s)",
+	)
+	assertContains(t, result, "5201, 5202, 5203")
+}
+
+func TestTransferTool_UIDsAsStringifiedJSONArray(
+	t *testing.T,
+) {
+	// The MCP framework sometimes wraps the entire
+	// JSON array as a string: "[57086, 57093]".
+	mock := &mockTransfer{}
+	tool := newTestTransferTool(mock)
+
+	result, err := tool.Execute(
+		context.Background(),
+		json.RawMessage(
+			`{"account":"gmail","mailbox":"INBOX",`+
+				`"uids":"[5201, 5202, 5203]",`+
+				`"destination":"Work/Projects"}`,
+		),
+	)
+	if err != nil {
+		t.Fatalf(
+			"Execute() unexpected error: %v", err,
+		)
+	}
+
+	if len(mock.calls) != 1 {
+		t.Fatalf(
+			"expected 1 call, got %d",
+			len(mock.calls),
+		)
+	}
+
+	if len(mock.calls[0].uids) != 3 {
+		t.Errorf(
+			"uids count = %d, want 3",
+			len(mock.calls[0].uids),
+		)
+	}
+
+	assertContains(
+		t, result, "Moved 3 message(s)",
+	)
+	assertContains(t, result, "5201, 5202, 5203")
+}
+
+func TestTransferTool_UIDsAsCommaSeparatedString(
+	t *testing.T,
+) {
+	// Claude sometimes passes UIDs as a single
+	// comma-separated string rather than a JSON array.
+	mock := &mockTransfer{}
+	tool := newTestTransferTool(mock)
+
+	result, err := tool.Execute(
+		context.Background(),
+		json.RawMessage(
+			`{"account":"gmail","mailbox":"INBOX",`+
+				`"uids":"5201, 5202, 5203",`+
+				`"destination":"Work/Projects"}`,
+		),
+	)
+	if err != nil {
+		t.Fatalf(
+			"Execute() unexpected error: %v", err,
+		)
+	}
+
+	if len(mock.calls) != 1 {
+		t.Fatalf(
+			"expected 1 call, got %d",
+			len(mock.calls),
+		)
+	}
+
+	if len(mock.calls[0].uids) != 3 {
+		t.Errorf(
+			"uids count = %d, want 3",
+			len(mock.calls[0].uids),
+		)
+	}
+
+	assertContains(
+		t, result, "Moved 3 message(s)",
+	)
+	assertContains(t, result, "5201, 5202, 5203")
+}
+
 func TestTransferTool_EmptyUIDs(t *testing.T) {
 	tool := newTestTransferTool(&mockTransfer{})
 

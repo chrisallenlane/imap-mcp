@@ -87,10 +87,10 @@ func (t *DeleteMessages) Execute(
 	args json.RawMessage,
 ) (string, error) {
 	var params struct {
-		Account   string   `json:"account"`
-		Mailbox   string   `json:"mailbox"`
-		UIDs      []uint32 `json:"uids"`
-		Permanent bool     `json:"permanent"`
+		Account   string          `json:"account"`
+		Mailbox   string          `json:"mailbox"`
+		UIDs      json.RawMessage `json:"uids"`
+		Permanent bool            `json:"permanent"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return "", fmt.Errorf(
@@ -105,11 +105,16 @@ func (t *DeleteMessages) Execute(
 	if params.Mailbox == "" {
 		return "", fmt.Errorf("mailbox is required")
 	}
-	if len(params.UIDs) == 0 {
+
+	parsedUIDs, err := parseUIDs(params.UIDs)
+	if err != nil {
+		return "", err
+	}
+	if len(parsedUIDs) == 0 {
 		return "", fmt.Errorf("uids must not be empty")
 	}
 
-	uids := toIMAPUIDs(params.UIDs)
+	uids := toIMAPUIDs(parsedUIDs)
 
 	if params.Permanent {
 		if err := t.deleter.ExpungeMessages(
@@ -126,7 +131,7 @@ func (t *DeleteMessages) Execute(
 		return formatPermanentDeleteResult(
 			params.Account,
 			params.Mailbox,
-			params.UIDs,
+			parsedUIDs,
 		), nil
 	}
 
@@ -166,7 +171,7 @@ func (t *DeleteMessages) Execute(
 	return formatSafeDeleteResult(
 		params.Account,
 		params.Mailbox,
-		params.UIDs,
+		parsedUIDs,
 		trashMailbox,
 	), nil
 }

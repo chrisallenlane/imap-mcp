@@ -394,6 +394,44 @@ func TestMarkMessages_NoFlags(t *testing.T) {
 	}
 }
 
+func TestMarkMessages_UIDsAsStrings(t *testing.T) {
+	// Claude sometimes passes UIDs as quoted strings;
+	// verify the tool accepts either form.
+	mock := &mockFlagSetter{}
+	tool := NewMarkMessages(mock)
+
+	result, err := tool.Execute(
+		context.Background(),
+		json.RawMessage(
+			`{"account":"gmail","mailbox":"INBOX",`+
+				`"uids":["5201","5202"],`+
+				`"read":true}`,
+		),
+	)
+	if err != nil {
+		t.Fatalf(
+			"Execute() unexpected error: %v", err,
+		)
+	}
+
+	if len(mock.calls) != 1 {
+		t.Fatalf(
+			"expected 1 StoreFlags call, got %d",
+			len(mock.calls),
+		)
+	}
+
+	if len(mock.calls[0].uids) != 2 {
+		t.Errorf(
+			"uids count = %d, want 2",
+			len(mock.calls[0].uids),
+		)
+	}
+
+	assertContains(t, result, "Updated 2 message(s)")
+	assertContains(t, result, "5201, 5202")
+}
+
 func TestMarkMessages_EmptyUIDs(t *testing.T) {
 	mock := &mockFlagSetter{}
 	tool := NewMarkMessages(mock)
