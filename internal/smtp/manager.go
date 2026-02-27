@@ -12,14 +12,47 @@ import (
 	gosmtp "github.com/emersion/go-smtp"
 )
 
+// smtpClient is a narrow interface for SMTP client operations.
+// *gosmtp.Client satisfies this via clientAdapter.
+type smtpClient interface {
+	Auth(a sasl.Client) error
+	Mail(from string, opts *gosmtp.MailOptions) error
+	Rcpt(to string, opts *gosmtp.RcptOptions) error
+	Data() (io.WriteCloser, error)
+	Quit() error
+	Close() error
+}
+
+// clientAdapter wraps *gosmtp.Client to satisfy smtpClient.
+// The only adaptation is promoting Data()'s return type from
+// *gosmtp.DataCommand to io.WriteCloser.
+type clientAdapter struct {
+	*gosmtp.Client
+}
+
+func (a *clientAdapter) Data() (io.WriteCloser, error) {
+	return a.Client.Data()
+}
+
 // Manager handles SMTP sending for configured accounts.
 type Manager struct {
 	config *config.Config
+	dial   func(config.Account) (smtpClient, error)
 }
 
 // NewManager creates a new SMTP manager from the given config.
 func NewManager(cfg *config.Config) *Manager {
-	return &Manager{config: cfg}
+	return &Manager{config: cfg, dial: defaultDial}
+}
+
+// defaultDial creates an SMTP connection and wraps it as an
+// smtpClient.
+func defaultDial(acct config.Account) (smtpClient, error) {
+	c, err := dial(acct)
+	if err != nil {
+		return nil, err
+	}
+	return &clientAdapter{c}, nil
 }
 
 // Config returns the manager's configuration.
@@ -49,7 +82,7 @@ func (m *Manager) Send(
 		)
 	}
 
-	c, err := dial(acct)
+	c, err := m.dial(acct)
 	if err != nil {
 		return fmt.Errorf(
 			"failed to connect to SMTP server: %w",
