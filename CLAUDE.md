@@ -81,6 +81,8 @@ imap-mcp/
 │       ├── compose_test.go
 │       ├── send_message.go       # send_message tool
 │       ├── send_message_test.go
+│       ├── save_draft.go         # save_draft tool
+│       ├── save_draft_test.go
 │       └── delete_mailbox_test.go
 ├── config.example.toml          # Example configuration file
 ├── Makefile                     # Build automation
@@ -436,6 +438,7 @@ Every new tool should have:
 - **`create_mailbox`** - Creates a new mailbox (folder) via IMAP CREATE. Intermediate hierarchy levels are created automatically by most servers. Takes required `account` and `name` parameters.
 - **`delete_mailbox`** - Deletes a mailbox (folder) via IMAP DELETE. Refuses to delete INBOX (case-insensitive) or any mailbox with SPECIAL-USE attributes (`\Sent`, `\Trash`, `\Drafts`, `\Junk`, `\Archive`, `\Flagged`). Takes required `account` and `name` parameters.
 - **`send_message`** - Sends an email via SMTP. Composes a proper RFC 5322 message with headers, body, and optional file attachments. Supports `to`, `cc`, and `bcc` recipients. From address defaults to IMAP `username` unless `smtp_from` is set. Optionally saves to Sent folder via IMAP APPEND when `save_sent = true`. Only available when `smtp_enabled = true`. Takes required `account`, `to`, `subject`, and `body` parameters, plus optional `cc`, `bcc`, and `attachments` (file paths).
+- **`save_draft`** - Composes a message and saves it as a draft in the Drafts folder via IMAP APPEND with `\Draft` flag. All parameters except `account` are optional, allowing partial drafts. Detects Drafts folder via SPECIAL-USE `\Drafts` attribute. Shares composition logic with `send_message`. Only available when `smtp_enabled = true`. Takes required `account` parameter, plus optional `to`, `cc`, `bcc`, `subject`, `body`, and `attachments`.
 
 ## Configuration
 
