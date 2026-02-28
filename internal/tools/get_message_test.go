@@ -502,7 +502,7 @@ func TestGetMessage_NilEnvelope(t *testing.T) {
 	}
 
 	assertContains(t, result, "Message UID 400")
-	assertContains(t, result, "no envelope data")
+	assertContains(t, result, "(no envelope data)")
 }
 
 func TestGetMessage_NoBodySection(t *testing.T) {
@@ -822,6 +822,157 @@ func TestGetMessage_MultipleAddresses(t *testing.T) {
 	assertContains(t, result, "Two <two@b.com>")
 }
 
+func TestGetMessage_AttachmentByMediaType(t *testing.T) {
+	// Attachment detected by media type heuristic (no
+	// Content-Disposition header). The parse logic should
+	// recognize non-text, non-multipart parts as attachments
+	// when they are nested (path != nil).
+	rawBody := []byte(
+		"From: alice@example.com\r\n" +
+			"To: bob@example.com\r\n" +
+			"Subject: Test\r\n" +
+			"Content-Type: multipart/mixed; " +
+			"boundary=\"detect\"\r\n" +
+			"\r\n" +
+			"--detect\r\n" +
+			"Content-Type: text/plain\r\n" +
+			"\r\n" +
+			"See image below.\r\n" +
+			"--detect\r\n" +
+			"Content-Type: image/png\r\n" +
+			"\r\n" +
+			"PNGdata12345\r\n" +
+			"--detect--\r\n",
+	)
+	mock := &mockMessageGetter{
+		messages: []*imapclient.FetchMessageBuffer{
+			mockMsg(
+				imap.UID(801),
+				[]imap.Flag{imap.FlagSeen},
+				standardEnvelope(),
+				rawBody,
+			),
+		},
+	}
+	tool := NewGetMessage(mock)
+
+	result, err := tool.Execute(
+		context.Background(),
+		json.RawMessage(
+			`{"account":"a",`+
+				`"mailbox":"INBOX","uid":801}`,
+		),
+	)
+	if err != nil {
+		t.Fatalf("Execute() unexpected error: %v", err)
+	}
+
+	assertContains(t, result, "See image below.")
+	assertContains(t, result, "Attachments:")
+	assertContains(t, result, "image/png")
+}
+
+func TestGetMessage_UnnamedAttachment(t *testing.T) {
+	// Attachment without a filename in either
+	// Content-Disposition or Content-Type params should
+	// fall back to "unnamed".
+	rawBody := []byte(
+		"From: alice@example.com\r\n" +
+			"To: bob@example.com\r\n" +
+			"Subject: Test\r\n" +
+			"Content-Type: multipart/mixed; " +
+			"boundary=\"noname\"\r\n" +
+			"\r\n" +
+			"--noname\r\n" +
+			"Content-Type: text/plain\r\n" +
+			"\r\n" +
+			"Check this.\r\n" +
+			"--noname\r\n" +
+			"Content-Type: application/octet-stream\r\n" +
+			"Content-Disposition: attachment\r\n" +
+			"\r\n" +
+			"binarydata\r\n" +
+			"--noname--\r\n",
+	)
+	mock := &mockMessageGetter{
+		messages: []*imapclient.FetchMessageBuffer{
+			mockMsg(
+				imap.UID(802),
+				[]imap.Flag{imap.FlagSeen},
+				standardEnvelope(),
+				rawBody,
+			),
+		},
+	}
+	tool := NewGetMessage(mock)
+
+	result, err := tool.Execute(
+		context.Background(),
+		json.RawMessage(
+			`{"account":"a",`+
+				`"mailbox":"INBOX","uid":802}`,
+		),
+	)
+	if err != nil {
+		t.Fatalf("Execute() unexpected error: %v", err)
+	}
+
+	assertContains(t, result, "Attachments:")
+	assertContains(t, result, "unnamed")
+	assertContains(
+		t, result, "application/octet-stream",
+	)
+}
+
+func TestGetMessage_AttachmentOnlyWithDetails(t *testing.T) {
+	// When a message has only attachments and no text parts,
+	// the attachments must still be listed in the output.
+	rawBody := []byte(
+		"From: alice@example.com\r\n" +
+			"To: bob@example.com\r\n" +
+			"Subject: Test\r\n" +
+			"Content-Type: multipart/mixed; " +
+			"boundary=\"attonly\"\r\n" +
+			"\r\n" +
+			"--attonly\r\n" +
+			"Content-Type: application/pdf\r\n" +
+			"Content-Disposition: attachment; " +
+			"filename=\"report.pdf\"\r\n" +
+			"\r\n" +
+			"PDFdata\r\n" +
+			"--attonly--\r\n",
+	)
+	mock := &mockMessageGetter{
+		messages: []*imapclient.FetchMessageBuffer{
+			mockMsg(
+				imap.UID(803),
+				[]imap.Flag{imap.FlagSeen},
+				standardEnvelope(),
+				rawBody,
+			),
+		},
+	}
+	tool := NewGetMessage(mock)
+
+	result, err := tool.Execute(
+		context.Background(),
+		json.RawMessage(
+			`{"account":"a",`+
+				`"mailbox":"INBOX","uid":803}`,
+		),
+	)
+	if err != nil {
+		t.Fatalf("Execute() unexpected error: %v", err)
+	}
+
+	assertContains(
+		t, result, "no readable body content",
+	)
+	assertContains(t, result, "Attachments:")
+	assertContains(t, result, "report.pdf")
+	assertContains(t, result, "application/pdf")
+}
+
 func TestFormatSize(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -830,6 +981,7 @@ func TestFormatSize(t *testing.T) {
 	}{
 		{"zero bytes", 0, "0 B"},
 		{"small bytes", 500, "500 B"},
+		{"just under KB", 1023, "1023 B"},
 		{"one KB", 1024, "1 KB"},
 		{"several KB", 43008, "42 KB"},
 		{"one MB", 1048576, "1.0 MB"},
