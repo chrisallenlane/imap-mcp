@@ -1,55 +1,121 @@
 {
   "version": "1.0",
   "test_command": "make test",
-  "last_updated": "2026-02-26T00:00:00Z",
+  "last_updated": "2026-02-28T03:00:00Z",
   "modules": {
     "internal/config/config.go": {
-      "status": "pending",
+      "status": "completed",
       "covering_tests": ["internal/config/config_test.go"],
-      "last_tested": null,
-      "mutations_by_type": {},
-      "mutation_score": null,
-      "insights": []
+      "last_tested": "2026-02-28T00:10:00Z",
+      "mutations_by_type": {
+        "relational": {"total": 25, "killed": 22, "survived": 3, "examples": [
+          {"line": 63, "original": "acct.Host == \"\"", "mutated": "acct.Host <= \"\"", "result": "survived_equivalent", "test_that_caught_it": null},
+          {"line": 95, "original": "acct.SMTPPort == 0", "mutated": "acct.SMTPPort <= 0", "result": "survived_equivalent", "test_that_caught_it": null},
+          {"line": 56, "original": "len(c.Accounts) == 0", "mutated": "len(c.Accounts) <= 0", "result": "survived_equivalent", "test_that_caught_it": null}
+        ]},
+        "logical": {"total": 3, "killed": 3, "survived": 0, "examples": []},
+        "constant": {"total": 4, "killed": 4, "survived": 0, "examples": []},
+        "statement": {"total": 1, "killed": 1, "survived": 0, "examples": []}
+      },
+      "mutation_score": 90.9,
+      "insights": ["All 3 survivors are semantically equivalent (== vs <= for zero/empty comparisons). Effective score: 100%."]
     },
     "internal/imap/manager.go": {
-      "status": "pending",
+      "status": "completed",
       "covering_tests": ["internal/imap/manager_test.go"],
-      "last_tested": null,
-      "mutations_by_type": {},
-      "mutation_score": null,
-      "insights": []
+      "last_tested": "2026-02-28T00:30:00Z",
+      "mutations_by_type": {
+        "logical": {"total": 6, "killed": 6, "survived": 0, "examples": []},
+        "relational": {"total": 4, "killed": 4, "survived": 0, "examples": []},
+        "control_flow": {"total": 2, "killed": 2, "survived": 0, "examples": []},
+        "statement": {"total": 1, "killed": 1, "survived": 0, "examples": []}
+      },
+      "mutation_score": 100.0,
+      "insights": ["All 13 mutations killed. Connection lifecycle (open, dead, closed), error handling, and TLS/readOnly branching all thoroughly tested."]
     },
     "internal/imap/retry.go": {
-      "status": "pending",
+      "status": "completed",
       "covering_tests": ["internal/imap/retry_test.go"],
-      "last_tested": null,
-      "mutations_by_type": {},
-      "mutation_score": null,
-      "insights": []
+      "last_tested": "2026-02-28T00:50:00Z",
+      "mutations_by_type": {
+        "relational": {"total": 5, "killed": 5, "survived": 0, "examples": []},
+        "logical": {"total": 1, "killed": 1, "survived": 0, "examples": []},
+        "statement": {"total": 6, "killed": 3, "survived": 3, "examples": [
+          {"line": 52, "original": "return fn(client)", "mutated": "return zero, nil", "result": "survived", "test_that_caught_it": null},
+          {"line": 32, "original": "client.Close()", "mutated": "removed", "result": "survived_mock_limitation", "test_that_caught_it": null},
+          {"line": 33, "original": "delete(m.conns, account)", "mutated": "removed", "result": "survived_mock_limitation", "test_that_caught_it": null}
+        ]},
+        "constant": {"total": 1, "killed": 0, "survived": 1, "examples": [
+          {"line": 47, "original": "reconnect failed: %w", "mutated": "all is well: %w", "result": "survived_cosmetic", "test_that_caught_it": null}
+        ]},
+        "control_flow": {"total": 3, "killed": 1, "survived": 2, "examples": [
+          {"line": 31, "original": "m.conns[account] == client", "mutated": "m.conns[account] != client", "result": "survived_mock_limitation", "test_that_caught_it": null}
+        ]}
+      },
+      "mutation_score": 62.5,
+      "insights": ["Critical gap: retry call after reconnect (line 52) not verified by tests. Connection cleanup survivors are mock limitations (single-threaded tests). Error message survivors are cosmetic."]
     },
     "internal/imap/message.go": {
-      "status": "pending",
+      "status": "completed",
       "covering_tests": ["internal/imap/message_test.go"],
-      "last_tested": null,
-      "mutations_by_type": {},
-      "mutation_score": null,
-      "insights": []
+      "last_tested": "2026-02-28T00:40:00Z",
+      "mutations_by_type": {
+        "relational": {"total": 3, "killed": 3, "survived": 0, "examples": []},
+        "constant": {"total": 4, "killed": 2, "survived": 2, "examples": [
+          {"line": 95, "original": "Silent: true", "mutated": "Silent: false", "result": "survived_mock_limitation", "test_that_caught_it": null},
+          {"line": 199, "original": "Silent: true", "mutated": "Silent: false", "result": "survived_mock_limitation", "test_that_caught_it": null}
+        ]},
+        "logical": {"total": 1, "killed": 1, "survived": 0, "examples": []},
+        "control_flow": {"total": 4, "killed": 3, "survived": 1, "examples": [
+          {"line": 65, "original": "readOnly: true", "mutated": "readOnly: false", "result": "survived_mock_limitation", "test_that_caught_it": null}
+        ]},
+        "statement": {"total": 7, "killed": 4, "survived": 3, "examples": [
+          {"line": 304, "original": "appendCmd.Write error check", "mutated": "removed", "result": "survived", "test_that_caught_it": null},
+          {"line": 311, "original": "appendCmd.Close error check", "mutated": "removed", "result": "survived", "test_that_caught_it": null}
+        ]},
+        "arithmetic": {"total": 2, "killed": 0, "survived": 2, "examples": [
+          {"line": 297, "original": "int64(len(msg))", "mutated": "int64(len(msg) + 1)", "result": "survived_mock_limitation", "test_that_caught_it": null}
+        ]}
+      },
+      "mutation_score": 56.5,
+      "insights": ["Most survivors are mock limitations (Silent flag, size param, readOnly flag, error messages). AppendMessage Write/Close error paths are untested - potential real gap. Core logic (UID validation, operation types, flag handling) well tested."]
     },
     "internal/imap/mailbox.go": {
-      "status": "pending",
+      "status": "completed",
       "covering_tests": ["internal/imap/mailbox_test.go"],
-      "last_tested": null,
-      "mutations_by_type": {},
-      "mutation_score": null,
-      "insights": []
+      "last_tested": "2026-02-28T00:20:00Z",
+      "mutations_by_type": {
+        "constant": {"total": 13, "killed": 5, "survived": 8, "examples": [
+          {"line": 18, "original": "\"*\"", "mutated": "\"\"", "result": "survived_mock_limitation", "test_that_caught_it": null},
+          {"line": 49, "original": "NumMessages: true", "mutated": "NumMessages: false", "result": "survived_mock_limitation", "test_that_caught_it": null},
+          {"line": 66, "original": "error message text", "mutated": "different text", "result": "survived_cosmetic", "test_that_caught_it": null}
+        ]},
+        "relational": {"total": 2, "killed": 2, "survived": 0, "examples": []},
+        "statement": {"total": 2, "killed": 2, "survived": 0, "examples": []},
+        "control_flow": {"total": 2, "killed": 2, "survived": 0, "examples": []}
+      },
+      "mutation_score": 57.9,
+      "insights": ["All 8 survivors are mock limitations (mocks don't validate IMAP command parameters or error message text). All logic/control-flow mutations caught. Effective logic score: 100%."]
     },
     "internal/server/server.go": {
-      "status": "pending",
+      "status": "completed",
       "covering_tests": ["internal/server/server_test.go"],
-      "last_tested": null,
-      "mutations_by_type": {},
-      "mutation_score": null,
-      "insights": []
+      "last_tested": "2026-02-28T01:00:00Z",
+      "mutations_by_type": {
+        "relational": {"total": 7, "killed": 6, "survived": 1, "examples": [
+          {"line": 112, "original": "encErr != nil", "mutated": "encErr == nil", "result": "survived", "test_that_caught_it": null}
+        ]},
+        "logical": {"total": 2, "killed": 2, "survived": 0, "examples": []},
+        "constant": {"total": 21, "killed": 18, "survived": 3, "examples": [
+          {"line": 24, "original": "30 * time.Second", "mutated": "31 * time.Second", "result": "survived_cosmetic", "test_that_caught_it": null},
+          {"line": 109, "original": "Parse error: %v", "mutated": "Invalid request: %v", "result": "survived_cosmetic", "test_that_caught_it": null},
+          {"line": 173, "original": "capabilities", "mutated": "features", "result": "survived", "test_that_caught_it": null}
+        ]},
+        "statement": {"total": 1, "killed": 1, "survived": 0, "examples": []},
+        "control_flow": {"total": 1, "killed": 1, "survived": 0, "examples": []}
+      },
+      "mutation_score": 84.4,
+      "insights": ["Encoder error path (line 112) untested. Timeout constant and error message text are cosmetic. Capabilities nested field names partially untested. All error codes, routing, and tool registration well covered."]
     },
     "internal/server/types.go": {
       "status": "completed",
@@ -141,12 +207,22 @@
       "insights": ["Added 3 tests: AttachmentByMediaType, UnnamedAttachment, AttachmentOnlyWithDetails. Key gaps were in attachment detection heuristic and unnamed filename fallback. Remaining survivors are error-swallowing (intentional) and constant self-references."]
     },
     "internal/tools/list_accounts.go": {
-      "status": "pending",
+      "status": "completed",
       "covering_tests": ["internal/tools/list_accounts_test.go"],
-      "last_tested": null,
-      "mutations_by_type": {},
-      "mutation_score": null,
-      "insights": []
+      "last_tested": "2026-02-28T02:00:00Z",
+      "mutations_by_type": {
+        "relational": {"total": 3, "killed": 3, "survived": 0, "examples": []},
+        "logical": {"total": 2, "killed": 2, "survived": 0, "examples": []},
+        "arithmetic": {"total": 2, "killed": 2, "survived": 0, "examples": []},
+        "constant": {"total": 20, "killed": 12, "survived": 8, "examples": [
+          {"line": 36, "original": "Description string", "mutated": "empty", "result": "survived_cosmetic", "test_that_caught_it": null},
+          {"line": 78, "original": "leading newline", "mutated": "removed", "result": "survived_cosmetic", "test_that_caught_it": null},
+          {"line": 81, "original": "indentation spaces", "mutated": "removed", "result": "survived_cosmetic", "test_that_caught_it": null}
+        ]},
+        "statement": {"total": 1, "killed": 1, "survived": 0, "examples": []}
+      },
+      "mutation_score": 71.4,
+      "insights": ["All 8 survivors are cosmetic formatting (newlines, indentation, description string). Tests use assertContains which doesn't validate exact formatting. All core logic, conditionals, and content well tested."]
     },
     "internal/tools/list_mailboxes.go": {
       "status": "completed",
@@ -221,12 +297,23 @@
       "insights": ["Both survivors are semantically equivalent (len >= 0 is always true). Effective score: 100%."]
     },
     "internal/tools/transfer_messages.go": {
-      "status": "pending",
+      "status": "completed",
       "covering_tests": ["internal/tools/transfer_messages_test.go"],
-      "last_tested": null,
-      "mutations_by_type": {},
-      "mutation_score": null,
-      "insights": []
+      "last_tested": "2026-02-28T02:10:00Z",
+      "mutations_by_type": {
+        "relational": {"total": 6, "killed": 6, "survived": 0, "examples": []},
+        "logical": {"total": 2, "killed": 2, "survived": 0, "examples": []},
+        "statement": {"total": 3, "killed": 3, "survived": 0, "examples": []},
+        "arithmetic": {"total": 7, "killed": 4, "survived": 3, "examples": [
+          {"line": 43, "original": "t.verb[:1]", "mutated": "t.verb[:0]", "result": "survived_cosmetic", "test_that_caught_it": null}
+        ]},
+        "constant": {"total": 6, "killed": 2, "survived": 4, "examples": [
+          {"line": 153, "original": "\"move\"", "mutated": "\"copy\"", "result": "survived_cosmetic", "test_that_caught_it": null},
+          {"line": 158, "original": "\"Copied\"", "mutated": "\"Moved\"", "result": "survived_cosmetic", "test_that_caught_it": null}
+        ]}
+      },
+      "mutation_score": 70.8,
+      "insights": ["All survivors relate to Description() method (not tested) and verb/pastVerb constructor params. All validation, error handling, and output formatting well tested."]
     },
     "internal/tools/delete_messages.go": {
       "status": "completed",
@@ -243,28 +330,199 @@
       "insights": ["Survivors are schema description strings (cosmetic) and one string <= vs == with equal strings (boundary). All logic mutations caught."]
     },
     "internal/tools/create_mailbox.go": {
-      "status": "pending",
+      "status": "completed",
       "covering_tests": ["internal/tools/create_mailbox_test.go"],
-      "last_tested": null,
-      "mutations_by_type": {},
-      "mutation_score": null,
-      "insights": []
+      "last_tested": "2026-02-28T01:30:00Z",
+      "mutations_by_type": {
+        "relational": {"total": 4, "killed": 4, "survived": 0, "examples": []},
+        "constant": {"total": 11, "killed": 6, "survived": 5, "examples": [
+          {"line": 29, "original": "Description string", "mutated": "different string", "result": "survived_cosmetic", "test_that_caught_it": null},
+          {"line": 38, "original": "\"string\" (schema type)", "mutated": "\"number\"", "result": "survived_cosmetic", "test_that_caught_it": null}
+        ]},
+        "statement": {"total": 6, "killed": 6, "survived": 0, "examples": []}
+      },
+      "mutation_score": 76.2,
+      "insights": ["All survivors are cosmetic (description strings, schema type fields, trailing newlines). All logic, error handling, and validation thoroughly tested."]
     },
     "internal/tools/delete_mailbox.go": {
-      "status": "pending",
+      "status": "completed",
       "covering_tests": ["internal/tools/delete_mailbox_test.go"],
-      "last_tested": null,
+      "last_tested": "2026-02-28T01:40:00Z",
+      "mutations_by_type": {
+        "relational": {"total": 6, "killed": 6, "survived": 0, "examples": []},
+        "logical": {"total": 1, "killed": 1, "survived": 0, "examples": []},
+        "constant": {"total": 6, "killed": 3, "survived": 3, "examples": [
+          {"line": 67, "original": "return \"\"", "mutated": "return \"error\"", "result": "survived_cosmetic", "test_that_caught_it": null}
+        ]},
+        "statement": {"total": 4, "killed": 2, "survived": 2, "examples": [
+          {"line": 101, "original": "continue", "mutated": "removed", "result": "survived", "test_that_caught_it": null},
+          {"line": 114, "original": "break", "mutated": "removed", "result": "survived", "test_that_caught_it": null}
+        ]},
+        "control_flow": {"total": 3, "killed": 3, "survived": 0, "examples": []}
+      },
+      "mutation_score": 70.0,
+      "insights": ["Loop control (continue/break) survivors indicate tests don't exercise multiple-mailbox iteration thoroughly. Error return string values are cosmetic (tests only check error presence). All core validation and error handling well tested."]
+    },
+    "cmd/imap-mcp/main.go": {
+      "status": "completed",
+      "covering_tests": [],
+      "last_tested": "2026-02-28T00:00:00Z",
       "mutations_by_type": {},
       "mutation_score": null,
-      "insights": []
+      "insights": ["Skipped: entry point with flag parsing, os.Exit, and stdio setup. Not unit-testable."]
+    },
+    "internal/tools/tool.go": {
+      "status": "completed",
+      "covering_tests": [],
+      "last_tested": "2026-02-28T00:00:00Z",
+      "mutations_by_type": {},
+      "mutation_score": null,
+      "insights": ["Skipped: pure interface definition with no logic to mutate"]
+    },
+    "internal/smtp/manager.go": {
+      "status": "completed",
+      "covering_tests": ["internal/smtp/manager_test.go"],
+      "last_tested": "2026-02-28T01:10:00Z",
+      "mutations_by_type": {
+        "logical": {"total": 6, "killed": 6, "survived": 0, "examples": []},
+        "relational": {"total": 10, "killed": 10, "survived": 0, "examples": []},
+        "statement": {"total": 3, "killed": 3, "survived": 0, "examples": []},
+        "constant": {"total": 3, "killed": 1, "survived": 2, "examples": [
+          {"line": 192, "original": "\"%s:%d\"", "mutated": "\"%s/%d\"", "result": "survived_mock_limitation", "test_that_caught_it": null},
+          {"line": 145, "original": "\"\" (SASL identity)", "mutated": "\"MUTATED\"", "result": "survived_mock_limitation", "test_that_caught_it": null}
+        ]},
+        "control_flow": {"total": 2, "killed": 1, "survived": 1, "examples": [
+          {"line": 208, "original": "DialStartTLS", "mutated": "DialTLS", "result": "survived_mock_limitation", "test_that_caught_it": null}
+        ]}
+      },
+      "mutation_score": 87.5,
+      "insights": ["All logical/relational/statement mutations killed. Survivors are mock limitations: TLS method selection (DialStartTLS vs DialTLS indistinguishable through mock), address format string, and SASL identity parameter."]
+    },
+    "internal/tools/get_attachment.go": {
+      "status": "completed",
+      "covering_tests": ["internal/tools/get_attachment_test.go"],
+      "last_tested": "2026-02-28T01:50:00Z",
+      "mutations_by_type": {
+        "relational": {"total": 8, "killed": 8, "survived": 0, "examples": []},
+        "logical": {"total": 4, "killed": 3, "survived": 1, "examples": [
+          {"line": 153, "original": "err != nil (getwd)", "mutated": "err == nil", "result": "survived", "test_that_caught_it": null}
+        ]},
+        "constant": {"total": 4, "killed": 3, "survived": 1, "examples": [
+          {"line": 184, "original": "0o644", "mutated": "0o755", "result": "survived_cosmetic", "test_that_caught_it": null}
+        ]},
+        "statement": {"total": 3, "killed": 2, "survived": 1, "examples": [
+          {"line": 161, "original": "MkdirAll error handling", "mutated": "error ignored", "result": "survived", "test_that_caught_it": null}
+        ]},
+        "arithmetic": {"total": 8, "killed": 8, "survived": 0, "examples": []}
+      },
+      "mutation_score": 88.9,
+      "insights": ["Survivors are OS error paths (MkdirAll, WriteFile, Getwd) that can't fail in test temp dirs. All business logic (validation, collision handling, fallback filenames, path generation) thoroughly tested."]
+    },
+    "internal/tools/compose.go": {
+      "status": "completed",
+      "covering_tests": ["internal/tools/compose_test.go"],
+      "last_tested": "2026-02-28T01:20:00Z",
+      "mutations_by_type": {
+        "logical": {"total": 2, "killed": 2, "survived": 0, "examples": []},
+        "relational": {"total": 27, "killed": 18, "survived": 9, "examples": [
+          {"line": 92, "original": "len(p.Attachments) > 0", "mutated": "len(p.Attachments) >= 0", "result": "survived_equivalent", "test_that_caught_it": null},
+          {"line": 279, "original": "mt != \"\"", "mutated": "mt == \"\"", "result": "survived", "test_that_caught_it": null}
+        ]},
+        "constant": {"total": 3, "killed": 3, "survived": 0, "examples": []},
+        "statement": {"total": 4, "killed": 3, "survived": 1, "examples": [
+          {"line": 52, "original": "GenerateMessageID error return", "mutated": "removed", "result": "survived", "test_that_caught_it": null}
+        ]}
+      },
+      "mutation_score": 55.6,
+      "insights": ["Most survivors (7/10) are semantically equivalent (len >= 0 always true, len < 0 always false). Real gaps: detectMediaType fallback logic (mt == '' inversion), GenerateMessageID error path untested. All error propagation, charset, header formatting well tested."]
+    },
+    "internal/tools/smtp_helpers.go": {
+      "status": "completed",
+      "covering_tests": ["internal/tools/smtp_helpers_test.go"],
+      "last_tested": "2026-02-28T02:20:00Z",
+      "mutations_by_type": {
+        "relational": {"total": 12, "killed": 12, "survived": 0, "examples": []},
+        "logical": {"total": 1, "killed": 1, "survived": 0, "examples": []},
+        "arithmetic": {"total": 2, "killed": 2, "survived": 0, "examples": []},
+        "constant": {"total": 8, "killed": 5, "survived": 3, "examples": [
+          {"line": 108, "original": "\", \"", "mutated": "\"\"", "result": "survived_cosmetic", "test_that_caught_it": null}
+        ]},
+        "statement": {"total": 3, "killed": 3, "survived": 0, "examples": []}
+      },
+      "mutation_score": 89.3,
+      "insights": ["All 3 survivors are the \", \" separator in strings.Join (cosmetic formatting). All logic, validation, error handling, and recipient collection thoroughly tested."]
+    },
+    "internal/tools/send_message.go": {
+      "status": "completed",
+      "covering_tests": ["internal/tools/send_message_test.go"],
+      "last_tested": "2026-02-28T02:30:00Z",
+      "mutations_by_type": {
+        "relational": {"total": 5, "killed": 5, "survived": 0, "examples": []},
+        "logical": {"total": 5, "killed": 5, "survived": 0, "examples": []},
+        "statement": {"total": 4, "killed": 4, "survived": 0, "examples": []},
+        "control_flow": {"total": 1, "killed": 1, "survived": 0, "examples": []},
+        "constant": {"total": 2, "killed": 1, "survived": 1, "examples": [
+          {"line": 54, "original": "Description string", "mutated": "different", "result": "survived_cosmetic", "test_that_caught_it": null}
+        ]}
+      },
+      "mutation_score": 94.1,
+      "insights": ["Only survivor is Description() string (cosmetic). All validation, error handling, SaveSent logic, and SMTP flow thoroughly tested."]
+    },
+    "internal/tools/save_draft.go": {
+      "status": "completed",
+      "covering_tests": ["internal/tools/save_draft_test.go"],
+      "last_tested": "2026-02-28T02:40:00Z",
+      "mutations_by_type": {
+        "relational": {"total": 7, "killed": 7, "survived": 0, "examples": []}
+      },
+      "mutation_score": 100.0,
+      "insights": ["Perfect score. All validation, error handling, and formatting logic thoroughly tested."]
+    },
+    "internal/tools/reply_message.go": {
+      "status": "completed",
+      "covering_tests": ["internal/tools/reply_message_test.go"],
+      "last_tested": "2026-02-28T02:50:00Z",
+      "mutations_by_type": {
+        "relational": {"total": 7, "killed": 5, "survived": 2, "examples": [
+          {"line": 318, "original": "rawBytes != nil", "mutated": "rawBytes == nil", "result": "survived", "test_that_caught_it": null},
+          {"line": 321, "original": "parseErr == nil", "mutated": "parseErr != nil", "result": "survived", "test_that_caught_it": null}
+        ]},
+        "logical": {"total": 2, "killed": 1, "survived": 1, "examples": [
+          {"line": 192, "original": "&& (attachment forward)", "mutated": "||", "result": "survived", "test_that_caught_it": null}
+        ]},
+        "control_flow": {"total": 2, "killed": 2, "survived": 0, "examples": []},
+        "constant": {"total": 1, "killed": 1, "survived": 0, "examples": []},
+        "statement": {"total": 1, "killed": 1, "survived": 0, "examples": []}
+      },
+      "mutation_score": 69.2,
+      "insights": ["Survivors: fetchSource nil/error checks (fallback paths untested), attachment forwarding condition. Validation, mode switching, SaveSent logic well tested."]
+    },
+    "internal/tools/reply_helpers.go": {
+      "status": "completed",
+      "covering_tests": ["internal/tools/reply_helpers_test.go"],
+      "last_tested": "2026-02-28T02:50:00Z",
+      "mutations_by_type": {
+        "relational": {"total": 12, "killed": 8, "survived": 4, "examples": [
+          {"line": 72, "original": "len(override) > 0", "mutated": "len(override) >= 1", "result": "survived_equivalent", "test_that_caught_it": null},
+          {"line": 246, "original": "filename == \"\"", "mutated": "filename != \"\"", "result": "survived", "test_that_caught_it": null},
+          {"line": 55, "original": "env.MessageID != \"\"", "mutated": "env.MessageID == \"\"", "result": "survived", "test_that_caught_it": null}
+        ]},
+        "logical": {"total": 2, "killed": 2, "survived": 0, "examples": []},
+        "arithmetic": {"total": 2, "killed": 0, "survived": 2, "examples": [
+          {"line": 235, "original": "i := 1; i <= count", "mutated": "i := 1; i < count", "result": "survived", "test_that_caught_it": null}
+        ]},
+        "statement": {"total": 2, "killed": 2, "survived": 0, "examples": []}
+      },
+      "mutation_score": 61.1,
+      "insights": ["Survivors: equivalent > 0 vs >= 1 checks (3), attachment loop boundaries, fallback filename, References header. Self-exclusion, subject prefixing, quoting logic well tested."]
     }
   },
   "global_statistics": {
-    "total_modules": 20,
-    "completed_modules": 2,
-    "total_mutations": 29,
-    "total_killed": 26,
-    "total_survived": 3,
-    "overall_score": 89.7
+    "total_modules": 30,
+    "completed_modules": 30,
+    "total_mutations": 628,
+    "total_killed": 510,
+    "total_survived": 118,
+    "overall_score": 81.2
   }
 }
