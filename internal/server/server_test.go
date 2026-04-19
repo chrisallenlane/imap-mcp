@@ -175,13 +175,11 @@ func TestHandleUnknownMethod(t *testing.T) {
 	}
 }
 
-// TestHandleNotification documents the current behavior for MCP
-// notifications. The MCP spec defines notifications like
-// "notifications/initialized" that clients send after the
-// handshake. The server currently treats these as unknown
-// methods and returns an error. This test serves as a
-// regression test so that any future change to notification
-// handling is intentional.
+// TestHandleNotification verifies that JSON-RPC notifications
+// (requests without an id) receive no response, per JSON-RPC
+// 2.0. The MCP handshake sends "notifications/initialized"
+// after initialize; strict clients abort the handshake if the
+// server replies to it.
 func TestHandleNotification(t *testing.T) {
 	s := newTestServer()
 
@@ -193,20 +191,34 @@ func TestHandleNotification(t *testing.T) {
 
 	resp := s.handleRequest(context.Background(), req)
 
-	// Current behavior: notifications are treated as unknown
-	// methods. If notification support is added later, this
-	// test should be updated to reflect the new behavior.
-	if resp.Error == nil {
-		t.Fatal(
-			"Expected error for notification " +
-				"(current behavior)",
+	if resp != nil {
+		t.Fatalf(
+			"Expected nil response for notification, got %+v",
+			resp,
 		)
 	}
+}
 
-	if resp.Error.Code != -32601 {
+// TestRun_NotificationNoResponse verifies that Run() writes
+// nothing to stdout for a notification. Any output would break
+// the MCP handshake by appearing on the client's pipe as an
+// unmatched message.
+func TestRun_NotificationNoResponse(t *testing.T) {
+	s := newTestServer()
+
+	input := `{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}` +
+		"\n"
+	stdin := strings.NewReader(input)
+	var stdout bytes.Buffer
+
+	if err := s.Run(context.Background(), stdin, &stdout); err != nil {
+		t.Fatalf("Run() unexpected error: %v", err)
+	}
+
+	if stdout.Len() != 0 {
 		t.Errorf(
-			"Error code = %d, want -32601",
-			resp.Error.Code,
+			"expected no output for notification, got: %s",
+			stdout.String(),
 		)
 	}
 }

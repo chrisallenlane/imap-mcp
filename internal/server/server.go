@@ -119,6 +119,9 @@ func (s *Server) Run(
 		}
 
 		resp := s.handleRequest(ctx, &req)
+		if resp == nil {
+			continue
+		}
 		if err := encoder.Encode(resp); err != nil {
 			log.Printf("Failed to encode response: %v", err)
 			return err
@@ -128,11 +131,19 @@ func (s *Server) Run(
 	return scanner.Err()
 }
 
-// handleRequest processes a JSON-RPC request
+// handleRequest processes a JSON-RPC request. Returns nil for
+// notifications (JSON-RPC 2.0 requests without an id), which MUST
+// NOT receive a response per the spec. The MCP handshake sends
+// "notifications/initialized" after initialize; responding to it
+// causes strict clients to abort the handshake.
 func (s *Server) handleRequest(
 	ctx context.Context,
 	req *JSONRPCRequest,
 ) *JSONRPCResponse {
+	if req.ID == nil {
+		return nil
+	}
+
 	resp := &JSONRPCResponse{
 		JSONRPC: "2.0",
 		ID:      req.ID,
