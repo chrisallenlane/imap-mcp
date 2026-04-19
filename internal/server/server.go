@@ -20,7 +20,7 @@ import (
 const (
 	MCPProtocolVersion   = "2024-11-05"
 	ServerName           = "imap-mcp"
-	ServerVersion        = "0.2.0"
+	ServerVersion        = "0.2.1"
 	ToolExecutionTimeout = 30 * time.Second
 )
 

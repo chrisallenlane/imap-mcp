@@ -518,7 +518,7 @@ Tools define narrow interfaces for the ConnectionManager methods they need (e.g.
 ## Version Information
 
 - MCP Protocol Version: `2024-11-05`
-- Server Version: `0.2.0`
+- Server Version: `0.2.1`
 - Go Version: 1.24+ required
 
 ## Resources
